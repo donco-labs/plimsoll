@@ -400,7 +400,7 @@ log show --last 24h --predicate 'subsystem == "com.apple.TimeMachine"' \
   | grep BACKUP_FAILED
 ```
 
-That is the `Attempts` check: WARN on the first failing observation, CRIT after
+That is the `Last attempt` check: WARN on the first failing observation, CRIT after
 `SC_TM_FAIL_CRIT_H` (12 hours). Age and outcome stay separate rows on purpose —
 "0d ago **and** failing" is the normal shape of this fault, so folding them into
 one verdict lets the healthy number hide the broken one.

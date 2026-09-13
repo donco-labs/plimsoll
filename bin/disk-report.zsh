@@ -243,9 +243,9 @@ for c in $SC_CHECKS; do
   name=$(sc_check_name $c)
   headline=$(sc_check_headline $c)
   case $lvl in
-    (CRIT) printf '  %s  %-10s %s\n' "${SC_RED}CRIT${SC_RST}" $name "$headline" ;;
-    (WARN) printf '  %s  %-10s %s\n' "${SC_YEL}WARN${SC_RST}" $name "$headline" ;;
-    (*)    printf '  %s    %-10s %s\n' "${SC_GRN}OK${SC_RST}" $name "$headline" ;;
+    (CRIT) printf '  %s  %-13s %s\n' "${SC_RED}CRIT${SC_RST}" "$name" "$headline" ;;
+    (WARN) printf '  %s  %-13s %s\n' "${SC_YEL}WARN${SC_RST}" "$name" "$headline" ;;
+    (*)    printf '  %s    %-13s %s\n' "${SC_GRN}OK${SC_RST}" "$name" "$headline" ;;
   esac
 done
 for n in $SC_NOTES; do sc_dim "  note  $n"; done

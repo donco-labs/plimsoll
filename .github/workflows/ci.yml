@@ -108,12 +108,12 @@ jobs:
             sc_run_health_checks
             seen=0
             for c in $SC_CHECKS; do
-              [[ $(sc_check_name $c) == Attempts ]] || continue
+              [[ $(sc_check_name $c) == "Last attempt" ]] || continue
               seen=1
               [[ $(sc_check_level $c) != OK ]] || { print "FAIL: failing attempt reported OK"; exit 1 }
               print "correctly non-OK: $(sc_check_headline $c)"
             done
-            (( seen )) || { print "FAIL: no Attempts check emitted"; exit 1 }
+            (( seen )) || { print "FAIL: no Last attempt check emitted"; exit 1 }
             [[ $(sc_overall_level) != OK ]] || { print "FAIL: overall level OK despite failing backups"; exit 1 }
           '
 
@@ -125,7 +125,7 @@ jobs:
             sc_tm_last_result() { return 1 }               # simulate unreadable prefs
             sc_run_health_checks
             for c in $SC_CHECKS; do
-              [[ $(sc_check_name $c) == Attempts ]] || continue
+              [[ $(sc_check_name $c) == "Last attempt" ]] || continue
               [[ $(sc_check_level $c) != OK ]] || { print "FAIL: unreadable outcome reported OK"; exit 1 }
               print "correctly non-OK: $(sc_check_headline $c)"
             done
@@ -148,12 +148,12 @@ jobs:
             sc_run_health_checks
             seen=0
             for c in $SC_CHECKS; do
-              [[ $(sc_check_name $c) == Attempts ]] || continue
+              [[ $(sc_check_name $c) == "Last attempt" ]] || continue
               seen=1
               [[ $(sc_check_level $c) == WARN ]] || { print "FAIL: expected WARN, got $(sc_check_level $c)"; exit 1 }
               print "correctly WARN: $(sc_check_headline $c)"
             done
-            (( seen )) || { print "FAIL: no Attempts check"; exit 1 }
+            (( seen )) || { print "FAIL: no Last attempt check"; exit 1 }
             # Time spent away must not accumulate toward the CRIT clock.
             age=$(( ( $(date +%s) - $(cut -f2 $SC_TM_STATE) ) / 3600 ))
             (( age < 1 )) || { print "FAIL: clock not held, ${age}h"; exit 1 }
@@ -174,7 +174,7 @@ jobs:
             printf "%s\t%s\n" 1757370669 $(( $(date +%s) - 13*3600 )) > $SC_TM_STATE
             sc_run_health_checks
             for c in $SC_CHECKS; do
-              [[ $(sc_check_name $c) == Attempts ]] || continue
+              [[ $(sc_check_name $c) == "Last attempt" ]] || continue
               [[ $(sc_check_level $c) == CRIT ]] || { print "FAIL: uncertainty went quiet: $(sc_check_level $c)"; exit 1 }
               print "correctly CRIT despite an unreadable probe: $(sc_check_headline $c)"
             done

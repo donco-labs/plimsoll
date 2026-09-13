@@ -249,7 +249,7 @@ It **checks** every 2 hours; it **notifies** only on a level change, or once per
 **A silent notification tray is the healthy steady state** — use `make log` to
 confirm it is alive.
 
-One condition is deliberately silent even at WARN: `Attempts: destination away`
+One condition is deliberately silent even at WARN: `Last attempt: destination not reachable`
 when it is the *only* thing wrong. A laptop that leaves the house every weekday
 cannot reach a NAS at home, and a notification every morning about the expected
 consequence of commuting trains you to dismiss the guard unread. The row still
@@ -277,11 +277,11 @@ stale`, not `Disk CRIT` on a machine with 121 GB free.
 
 ```
 == Verdict ==
-  OK    Disk       22% free (109.2 GB)
-  OK    Backups    enabled · hourly
-  OK    Backup     Wed 21:10 · 1.5 GB of 172.6 GB in 11m
-  OK    Attempts   last ok
-  OK    Snapshots  2
+  OK    Disk          22% free (109.2 GB)
+  OK    Backups       enabled · hourly
+  OK    Backup        Wed 21:10 · 1.5 GB of 172.6 GB in 11m
+  OK    Last attempt  ok
+  OK    Snapshots     2
   note  2 jetsam/panic report(s) in the last 3 days (past events, not a current fault)
 
 OK    healthy
@@ -333,9 +333,10 @@ Thresholds, overridable by env: `SC_WARN_PCT` (15), `SC_CRIT_PCT` (10),
 is read from `SnapshotDates`, which only ever records completions — so a Mac
 attempting hourly and failing every single time still reports a healthy-looking
 recent timestamp, and goes on reporting it until the age finally drifts past
-`SC_TM_WARN_D` two days later. `Attempts` reads `RESULT` instead, the outcome of the most recent attempt,
-and names the cause: `Attempts CRIT: failing 33h — network dropped mid-copy
-(code 26)`. It warns on the first failing check and escalates
+`SC_TM_WARN_D` two days later. `Last attempt` reads `RESULT` instead, the outcome of the most recent
+attempt, and names the cause rather than a second clock: `Last attempt CRIT: failed — network dropped
+mid-copy`. How long it has been failing is in the row's tooltip, because the `Backup` row already owns
+a duration and two near-but-unequal ones side by side are worse than either. It warns on the first failing check and escalates
 after `SC_TM_FAIL_CRIT_H` hours, so a chain that stops working is caught on the
 next two-hourly check rather than on day three.
 

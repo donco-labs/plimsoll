@@ -230,7 +230,7 @@ sc_tm_last_backup_human() {
 }
 
 # Headline form of the same fact. "0d ago" collapsed five minutes and
-# twenty-three hours into one string, while the Attempts detail three lines
+# twenty-three hours into one string, while the Last attempt detail three lines
 # below printed the exact timestamp -- the same fact at two precisions, with
 # the coarse one in the more prominent place.
 #
@@ -497,6 +497,7 @@ sc_tm_last_result() {
 sc_tm_result_cause() {
   case ${1:-} in
     (26) print -r -- "network dropped mid-copy" ;;
+    (31) print -r -- "backup disk locked" ;;
     (70) print -r -- "disk image detached mid-copy" ;;
     (*)  print -r -- "backupd error ${1:-?}" ;;
   esac
@@ -716,7 +717,7 @@ sc_pressure_events() {  # $1 = days, $2 = "any" | "memory"
 typeset -ga SC_CHECKS=()   # level \t name \t headline \t detail
 typeset -ga SC_NOTES=()
 
-# Set when the Attempts row is failing only because the destination is out of
+# Set when the Last attempt row is failing only because the destination is out of
 # reach. The row itself already says so, but a caller cannot tell that apart
 # from any other WARN by reading the record, and the guard needs to: an expected
 # weekday condition should not push a desktop notification. Matching on the
@@ -800,9 +801,9 @@ sc_run_health_checks() {
   local d
   if d=$(sc_tm_days_since_backup); then
     if   (( d >= SC_TM_CRIT_D )); then
-      sc_check CRIT Backup "${d} days" "Nothing has completed since $(sc_tm_last_backup_human)."
+      sc_check CRIT Backup "last good ${d} days ago" "Nothing has completed since $(sc_tm_last_backup_human)."
     elif (( d >= SC_TM_WARN_D )); then
-      sc_check WARN Backup "${d} days" "Last one finished $(sc_tm_last_backup_human)."
+      sc_check WARN Backup "last good ${d} days ago" "Last one finished $(sc_tm_last_backup_human)."
     else
       # Only the healthy row gets the size. A stale chain has a more urgent
       # thing to say, and past SC_TM_LOG_MAX_H the figure is gone anyway.
@@ -826,7 +827,7 @@ sc_run_health_checks() {
     if res=$(sc_tm_last_result); then
       if (( res == 0 )); then
         sc_tm_failing_clear
-        sc_check OK Attempts "last ok"
+        sc_check OK "Last attempt" "ok"
       else
         local anchor since hours cause reach
         anchor=$(sc_tm_last_backup_epoch) || anchor=none
@@ -851,22 +852,22 @@ sc_run_health_checks() {
           # instantly on time that was only ever spent out of range.
           sc_tm_failing_reset $anchor
           SC_TM_AWAY=1
-          sc_check WARN Attempts "destination away" \
+          sc_check WARN "Last attempt" "destination not reachable" \
             "Destination unreachable from this network (code ${res}). Expected while away; clears on its network. If you stay away, the Backup row is what escalates."
         else
           since=$(sc_tm_failing_since $anchor)
           hours=$(( ( $(date +%s) - since ) / 3600 ))
           if (( hours >= SC_TM_FAIL_CRIT_H )); then
-            sc_check CRIT Attempts "failing ${hours}h" \
+            sc_check CRIT "Last attempt" "failed — ${cause}" \
               "Failing ${hours}h — ${cause} (code ${res}). Destination is reachable, so not distance."
           else
-            sc_check WARN Attempts "failing" \
+            sc_check WARN "Last attempt" "failed — ${cause}" \
               "Last attempt failed — ${cause} (code ${res}). The age above only moves on success."
           fi
         fi
       fi
     else
-      sc_check WARN Attempts "unknown" \
+      sc_check WARN "Last attempt" "unknown" \
         "Could not read the last attempt's outcome — unverified, not healthy."
     fi
   fi

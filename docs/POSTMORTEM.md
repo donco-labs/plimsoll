@@ -245,7 +245,7 @@ side by side.
     transition. Seventy minutes awake fixed it. Nothing was ever damaged — Time
     Machine aborts the attempt and retries, which is exactly why it stayed quiet.
 
-    → `sc_tm_last_result` and an `Attempts` check, separate from `Backup` so a
+    → `sc_tm_last_result` and a `Last attempt` check, separate from `Backup` so a
     healthy age cannot mask a failing outcome. WARN on the first failing
     observation, CRIT after `SC_TM_FAIL_CRIT_H` (12 hours). It reads `RESULT`
     through the same unprivileged `defaults read` the date comes from: the plist
