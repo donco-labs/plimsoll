@@ -1007,10 +1007,29 @@ sc_sizes_refresh() {
   local tmp=${SC_SIZES_CACHE}.$$
   local c sz
 
+  # One walk at a time. The guard launches this detached every two hours and a
+  # cold walk over ~22 trees outlasts that interval on a loaded machine, so runs
+  # overlap. That is not merely wasted IO: each racer mv's its own cache into
+  # place and then stamps a history sample with whatever mtime it reads back, so
+  # two landing together record the SAME epoch twice. sc_sizes_total_series sums
+  # per timestamp, so the total is multiplied by the number of racers -- a
+  # steady 113 GB watch set once reported a 226 GB drop, because the older
+  # sample had been written three times and the newer one once. Per-path rows
+  # hide it: the duplicates carry identical values, so their deltas stay right.
+  local lock=${SC_SIZES_CACHE:h}/refresh.lock
+  if ! mkdir $lock 2>/dev/null; then
+    # A killed walk leaves the directory behind. Nothing legitimate holds it for
+    # an hour, so treat anything older as debris rather than as a live run.
+    local lage=$(( $(date +%s) - $(stat -f %m $lock 2>/dev/null || print -r -- 0) ))
+    (( lage < 3600 )) && return 0
+    rm -rf $lock 2>/dev/null
+    mkdir $lock 2>/dev/null || return 0
+  fi
+
   # An interrupted refresh -- the guard backgrounds this and the machine sleeps,
   # or a walk is killed -- used to leave its scratch file behind in the state
   # directory forever. zsh scopes a trap set inside a function to that function.
-  trap "rm -f ${(q)tmp}" EXIT INT TERM
+  trap "rm -f ${(q)tmp}; rmdir ${(q)lock} 2>/dev/null" EXIT INT TERM
 
   local -a keep=(${(f)"$(sc_watch_paths_effective)"})
   for c in $keep; do
@@ -1047,6 +1066,15 @@ sc_sizes_read() { [[ -r $SC_SIZES_CACHE ]] && cat $SC_SIZES_CACHE }
 sc_sizes_history_append() {  # $1 = sample epoch (default now) · stdin "<bytes>\t<path>"
   local now=${1:-$(date +%s)} b pth
   mkdir -p ${SC_SIZES_HISTORY:h}
+  # Idempotent on the epoch. The refresh lock above is the real defence against
+  # a doubled sample, but this file is the only record of what the machine was
+  # doing months ago -- there is no recomputing it -- so it refuses a second
+  # write under a timestamp it already holds rather than trusting the caller.
+  if [[ -r $SC_SIZES_HISTORY ]] &&
+     awk -F'\t' -v e="$now" '$1 == e { f = 1; exit } END { exit !f }' $SC_SIZES_HISTORY
+  then
+    return 0
+  fi
   while IFS=$'\t' read -r b pth; do
     [[ -n $b && -n $pth ]] && printf '%s\t%s\t%s\n' "$now" "$b" "$pth"
   done >> $SC_SIZES_HISTORY
@@ -1090,7 +1118,9 @@ sc_sizes_delta() {  # $1 = path · $2 = days -> signed bytes, or non-zero exit
 sc_sizes_total_series() {  # $1 = days (default SC_TREND_WINDOW_D)
   [[ -r $SC_SIZES_HISTORY ]] || return 1
   local cutoff=$(( $(date +%s) - ${1:-$SC_TREND_WINDOW_D} * 86400 ))
-  awk -F'\t' -v c=$cutoff '$1 >= c { s[$1] += $2 } END { for (t in s) print t, s[t] }' \
+  # One row per (epoch, path): a history written before the refresh lock existed
+  # can still hold a sample twice, and summing it raw multiplies the total.
+  awk -F'\t' -v c=$cutoff '$1 >= c && !seen[$1 FS $3]++ { s[$1] += $2 } END { for (t in s) print t, s[t] }' \
     $SC_SIZES_HISTORY | sort -n
 }
 
