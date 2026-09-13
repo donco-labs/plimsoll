@@ -158,8 +158,11 @@ would actually take.
 Shows a monochrome SF Symbol and nothing else when healthy — a template image, so
 it follows the menu bar appearance like any native item. Severity is weight rather
 than a different symbol: `internaldrive` when healthy, filled on a warning, and
-only a genuine emergency changes the glyph to a caution triangle and earns any
-text. The drive stays recognisable in a crowded menu bar either way. The
+only a genuine emergency changes the glyph to a caution triangle. It never shows
+text, at any severity — menu bar width is shared with every other app, and the
+worst check's subject on its own is a bare noun that names a category rather
+than a state. The triangle says "open me"; the dropdown says what and why. The
+drive stays recognisable in a crowded menu bar either way. The
 dropdown gives one row per check and puts the explanation in a **tooltip** —
 hover any row, healthy or not, to read what it is measuring and against what.
 That keeps the menu to one line per check instead of spending up to five rows
