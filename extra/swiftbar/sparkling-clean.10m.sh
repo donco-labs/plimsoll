@@ -80,32 +80,36 @@ if [[ -z $json ]]; then
 fi
 
 # Minimal field extraction — no jq, to keep the zero-dependency promise.
-# Restricted to the object prefix BEFORE "checks": the keys level/headline also
-# appear inside every check, and sed's greedy .* would otherwise return the LAST
-# match — pairing the worst check's subject with a different check's headline.
+# Restricted to the object prefix BEFORE "checks": the key level also appears
+# inside every check, and sed's greedy .* would otherwise return the LAST match
+# — the level of the last check rather than the roll-up of all of them.
 local head=${json%%,\"checks\":*}
 jget() { print -r -- "$head" | sed -E "s/.*\"$1\":\"([^\"]*)\".*/\1/" }
 
 local level=$(jget level)
-local subject=$(jget subject)
-local headline=$(jget headline)
 
 # SF Symbols render as template images: monochrome, and they follow the menu bar
 # appearance the way every native item does. An emoji cannot — it is always full
 # colour, and 💾 is a save icon from 1998 besides.
 #
-# Text costs horizontal space that the menu bar does not have, so only a CRIT
-# earns any, and then only the subject. A WARN changes the glyph and nothing
-# else: enough to notice, not enough to crowd out anything.
+# The item is a glyph and never text. Menu bar width is shared with every other
+# app on the machine, and a status that is only sometimes wide makes the whole
+# right-hand side shift when it changes. The one moment it would claim that space
+# is also the moment it helps least: the subject alone is a bare noun — the
+# CRIT that prompted this read "Attempts", which named a category and no state
+# (the check is "Last attempt" now, but a bare subject is still a bare subject).
+# The triangle's job is to say "open me". The condition and its detail live in
+# the dropdown, one colour-coded row per check with the sentence in a tooltip,
+# which is the only place either can be read in full.
 # Severity is weight, not a different symbol. The glyph stays a drive so the item
 # is recognisable at a glance in a crowded menu bar, and a warning simply fills
 # it in. Only a genuine emergency changes the symbol — a caution triangle for
 # "21 snapshots accumulated" reads the same as one for "no backup in 61 days",
 # and those are not comparable problems.
 case $level in
-  (CRIT) print -r -- "${subject} | sfimage=exclamationmark.triangle.fill" ;;
-  (WARN) print -r -- "| sfimage=internaldrive.fill"                       ;;
-  (*)    print -r -- "| sfimage=internaldrive"                            ;;
+  (CRIT) print -r -- "| sfimage=exclamationmark.triangle.fill" ;;
+  (WARN) print -r -- "| sfimage=internaldrive.fill"            ;;
+  (*)    print -r -- "| sfimage=internaldrive"                 ;;
 esac
 
 print -r -- "---"
