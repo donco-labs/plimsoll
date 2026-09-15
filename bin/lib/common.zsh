@@ -173,11 +173,18 @@ sc_tm_running() { tmutil status 2>/dev/null | grep -q 'Running = 1' }
 # "2.466504299824327e-06" is a real value from a backup ten seconds old. Matching
 # it with [0-9.]+ truncates at the exponent, so 0.0002% renders as 246.7%: a
 # progress display that reads "246%" on a backup that has barely started.
+#
+# tmutil also reports -1 while a run has no measurable progress yet -- every
+# preparation phase does it (HealthCheckFsck, MountingBackupVol,
+# PreparingSourceVolumes), and a network destination can sit in one for
+# minutes. Multiplied out that renders as "-100.0%". Treat it as the
+# "do not know yet" sentinel it is and report no figure at all.
 sc_tm_progress_pct() {
   local raw
   raw=$(tmutil status 2>/dev/null \
         | sed -nE 's/.*Percent"? = "([0-9.eE+-]+)".*/\1/p' | head -1)
   [[ -n $raw ]] || return 1
+  [[ $raw == -* ]] && return 1
   printf '%.1f' $(( raw * 100 ))
 }
 

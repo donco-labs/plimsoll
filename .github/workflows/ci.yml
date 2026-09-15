@@ -195,6 +195,28 @@ jobs:
             print "clock cleared"
           '
 
+      - name: Indeterminate backup progress reports no figure, not -100%
+        # tmutil reports Percent = -1 whenever a running backup has no
+        # measurable progress yet, which every preparation phase does. Scaling
+        # that sentinel like a fraction printed "backup RUNNING now (-100.0%)".
+        # Scientific notation must keep working alongside it -- that is a real
+        # value from a backup ten seconds old, not a rounding curiosity.
+        run: |
+          zsh -c '
+            source bin/lib/common.zsh
+            check() {
+              local want=$1   # $1 inside tmutil() would be tmutil'"'"'s own, not this one
+              tmutil() { print -r -- "    Percent = \"$want\";" }
+              if out=$(sc_tm_progress_pct); then print -r -- "$out"; else print -r -- "OMITTED"; fi
+            }
+            [[ $(check -1) == OMITTED ]] || { print "FAIL: -1 rendered as a percentage"; exit 1 }
+            [[ $(check 0.5) == 50.0 ]]   || { print "FAIL: 0.5 did not render as 50.0"; exit 1 }
+            [[ $(check 1) == 100.0 ]]    || { print "FAIL: 1 did not render as 100.0"; exit 1 }
+            [[ $(check 2.466504299824327e-06) == 0.0 ]] \
+              || { print "FAIL: scientific notation regressed"; exit 1 }
+            print "sentinel omitted; fractions still scale"
+          '
+
       - name: Worst check always names a subject
         run: |
           zsh -c '
