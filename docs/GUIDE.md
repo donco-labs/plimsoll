@@ -82,7 +82,7 @@ result was not measured.
 `thin` and `reclaim --apply` refuse to run while a backup is in progress for the
 same family of reason: thinning snapshots the running backup is reading from will
 most likely abort it, and `reclaim` pauses TM with `tmutil disable`, which stops
-it outright. Override with `SC_ALLOW_DURING_BACKUP=1` if you mean it.
+it outright. Override with `PL_ALLOW_DURING_BACKUP=1` if you mean it.
 
 ### 1.4 Purgeable space (why Finder disagrees)
 
@@ -327,7 +327,7 @@ make log
 Thresholds default to 15% (warn) / 10% (critical). Override:
 
 ```bash
-SC_WARN_PCT=20 SC_CRIT_PCT=12 make check
+PL_WARN_PCT=20 PL_CRIT_PCT=12 make check
 ```
 
 The guard also escalates on secondary signals: ≥5 local snapshots, Time Machine
@@ -371,7 +371,7 @@ defaults read /Library/Preferences/com.apple.TimeMachine \
 `AttemptDates` counts tries; `SnapshotDates` counts successes. Only the second
 one means anything.
 
-Thresholds `SC_TM_WARN_D` (2 days) and `SC_TM_CRIT_D` (7 days). A backup that is
+Thresholds `PL_TM_WARN_D` (2 days) and `PL_TM_CRIT_D` (7 days). A backup that is
 *currently running* does not clear the alert — only a completed one does.
 
 ### Age is necessary, and not sufficient
@@ -401,7 +401,7 @@ log show --last 24h --predicate 'subsystem == "com.apple.TimeMachine"' \
 ```
 
 That is the `Last attempt` check: WARN on the first failing observation, CRIT after
-`SC_TM_FAIL_CRIT_H` (12 hours). Age and outcome stay separate rows on purpose —
+`PL_TM_FAIL_CRIT_H` (12 hours). Age and outcome stay separate rows on purpose —
 "0d ago **and** failing" is the normal shape of this fault, so folding them into
 one verdict lets the healthy number hide the broken one.
 
@@ -436,8 +436,8 @@ backup is thinned. Measured on the source host:
 times cheaper to back up. Filtering on size alone also hid `~/.cargo`
 (233 MB, 15,705 files) and `~/Library/pnpm` (440 MB, 22,685) completely.
 
-So the check flags on **either** axis — `SC_TM_MIN_BYTES` (500 MB) or
-`SC_TM_MIN_FILES` (10,000) — and sorts by file count.
+So the check flags on **either** axis — `PL_TM_MIN_BYTES` (500 MB) or
+`PL_TM_MIN_FILES` (10,000) — and sorts by file count.
 
 This showed up concretely during a post-backup thinning pass that sat in
 `ThinningPostBackup` for tens of minutes at 0.9% CPU, deleting
@@ -476,7 +476,7 @@ This keeps the report advisory (it still never changes anything) while giving th
 policy a single, versioned, re-runnable home. `tmutil addexclusion` requires Full
 Disk Access, so run it from a terminal that has it.
 
-The candidate list (`SC_TM_EXCLUDE_CANDIDATES` in `lib/common.zsh`) deliberately
+The candidate list (`PL_TM_EXCLUDE_CANDIDATES` in `lib/common.zsh`) deliberately
 contains only things reconstructible from a registry, a lockfile, or a
 re-download. Anything a person might have hand-curated — Documents, Downloads,
 photo libraries — must never appear there, and the report asks you to review
@@ -497,7 +497,7 @@ laptop still gets checked, and it runs in the GUI session that notifications nee
 ### Alerting policy
 
 The guard *checks* every 2 hours but *notifies* only on a level change, or once
-per `SC_RENOTIFY_H` (12) hours while a condition persists. Never on OK. A CRIT
+per `PL_RENOTIFY_H` (12) hours while a condition persists. Never on OK. A CRIT
 nag every two hours for something you already know about trains you to ignore it.
 
 ### Checks vs notes

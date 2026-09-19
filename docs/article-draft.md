@@ -309,7 +309,7 @@ the search field in Time Machine's browser work. It is the feature, not a leak.
 
 Every signal was present for days beforehand. Jetsam events, macOS's own excessive-disk-write reports, free space falling. Nothing was watching.
 
-So I wrote one. `sparkling-clean` is about a thousand lines of zsh with no runtime dependencies — a read-only diagnostic, a tiered reclaimer that is dry-run by default, and a launchd agent that checks every two hours and stays silent unless something changes.
+So I wrote one. `plimsoll` is about a thousand lines of zsh with no runtime dependencies — a read-only diagnostic, a tiered reclaimer that is dry-run by default, and a launchd agent that checks every two hours and stays silent unless something changes.
 
 The diagnostic ends with the answer rather than making you assemble it:
 
@@ -423,8 +423,8 @@ If #2 or #3 surprises you, this article did its job. #2 is the one people expect
 
 ```bash
 brew tap donco-labs/tap
-brew trust --formula donco-labs/tap/sparkling-clean
-brew install sparkling-clean
+brew trust --formula donco-labs/tap/plimsoll
+brew install plimsoll
 ```
 
 (Homebrew 6 refuses formulae from third-party taps until you trust them. The
@@ -434,9 +434,9 @@ the point of the gate.)
 Then:
 
 ```bash
-sparkling-clean report          # the diagnostic above
-sparkling-clean install-guard   # the watchdog, every 2h
-sparkling-clean reclaim         # dry-run; --apply to actually reclaim
+plimsoll report          # the diagnostic above
+plimsoll install-guard   # the watchdog, every 2h
+plimsoll reclaim         # dry-run; --apply to actually reclaim
 ```
 
 Every destructive path is dry-run until you pass `--apply`, real data is reported
@@ -450,4 +450,4 @@ naming which mistake produced which line of code, including the four theories th
 turned out wrong. If you only read one, read the one about a monitor that reports
 healthy when it cannot tell.
 
-**[github.com/donco-labs/sparkling-clean](https://github.com/donco-labs/sparkling-clean)**
+**[github.com/donco-labs/plimsoll](https://github.com/donco-labs/plimsoll)**

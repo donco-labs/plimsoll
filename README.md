@@ -1,7 +1,12 @@
-# sparkling-clean
+# plimsoll
 
 A zero-dependency macOS disk triage toolkit. Diagnose disk-pressure freezes,
 reclaim space safely, and get warned before it happens again.
+
+Named for the *Plimsoll line*, the mark on a hull showing how heavily a ship may
+safely be loaded. Cross it and you founder — which is roughly what a Mac does at
+93% full. Everything here is either a way of reading where that line sits or a
+way of getting back above it.
 
 macOS abstracts away filesystem realities to keep the experience seamless. That
 works until you combine a nearly-full disk, a slow backup destination and a heavy
@@ -19,8 +24,8 @@ nothing had said so. Full writeup, including which theories turned out wrong:
 
 ```bash
 brew tap donco-labs/tap
-brew trust --formula donco-labs/tap/sparkling-clean
-brew install sparkling-clean
+brew trust --formula donco-labs/tap/plimsoll
+brew install plimsoll
 ```
 
 Homebrew 6.0 refuses to load formulae from third-party taps until you trust them
@@ -29,7 +34,7 @@ job. `--formula` trusts only this one; `brew trust donco-labs/tap` would trust
 every formula the tap ever gains. Trust is recorded in
 `~/.homebrew/trust.json` (or `$XDG_CONFIG_HOME/homebrew/trust.json`).
 
-The formula is [Formula/sparkling-clean.rb](https://github.com/donco-labs/homebrew-tap/blob/main/Formula/sparkling-clean.rb)
+The formula is [Formula/plimsoll.rb](https://github.com/donco-labs/homebrew-tap/blob/main/Formula/plimsoll.rb)
 — worth a read before you trust it, as with any tap.
 
 Or clone and use `make` directly — the repo works without installing.
@@ -37,7 +42,7 @@ Or clone and use `make` directly — the repo works without installing.
 ## Quick start
 
 ```bash
-sparkling-clean report   # or: make report          # what is going on — read-only, changes nothing
+plimsoll report   # or: make report          # what is going on — read-only, changes nothing
 ```
 ```bash
 make dry             # what a cleanup would free — removes nothing
@@ -54,7 +59,7 @@ make install-guard   # launchd watchdog: checks every 2h, notifies on WARN/CRIT
 ```bash
 brew install --cask swiftbar
 mkdir -p "$HOME/Library/Application Support/SwiftBarPlugins"
-ln -sf "$(brew --prefix)/opt/sparkling-clean/libexec/extra/swiftbar/sparkling-clean.10m.sh" \
+ln -sf "$(brew --prefix)/opt/plimsoll/libexec/extra/swiftbar/plimsoll.10m.sh" \
        "$HOME/Library/Application Support/SwiftBarPlugins/"
 open -a SwiftBar
 ```
@@ -94,7 +99,7 @@ open -a SwiftBar
 Beta 3 is cumulative and carries two more fixes worth having. One restores
 plugin-name lookup for the `swiftbar://refreshplugin` URL
 ([#527](https://github.com/swiftbar/SwiftBar/issues/527)) — that is what
-`sparkling-clean thin` calls, so the menu bar stops showing a stale snapshot
+`plimsoll thin` calls, so the menu bar stops showing a stale snapshot
 warning the moment you thin rather than up to ten minutes later. The other
 preserves explicit SF Symbol rendering, which is how the menu bar icon is drawn.
 
@@ -142,8 +147,8 @@ every row for the first week after the history starts. Samples are pruned at 180
 days and cost a couple of KB a day.
 
 Rows are **grouped by what would reclaim them**, so the list says not just where
-the space is but what to do about it: `sparkling-clean reclaim`, the same with
-`--tier 2`, `sparkling-clean docker`, and a `Yours` group for data nothing
+the space is but what to do about it: `plimsoll reclaim`, the same with
+`--tier 2`, `plimsoll docker`, and a `Yours` group for data nothing
 automated will ever delete. Headings name the CLI rather than the make targets,
 because a Homebrew install has no Makefile — and because the CLI form is
 dry-run until you add `--apply`, where `make clean-safe` already carries it. The
@@ -171,7 +176,7 @@ hidden by it: a condition worth acting on is *pushed* as a notification built
 from the same text, so the dropdown is the passive surface rather than the only
 one. Actions still get rows of their own, because a fix nobody can find is not
 a fix: when
-snapshots are holding space, it hands you `sparkling-clean thin` rather than
+snapshots are holding space, it hands you `plimsoll thin` rather than
 describing the problem and leaving you to search for the remedy. Reads the guard's `--json` (0.4 s) rather than the full report (tens of
 seconds), so it is cheap to refresh.
 
@@ -193,7 +198,7 @@ lines of config instead of a signing pipeline.
 | `make clean-safe` | Reclaim tier 1 — caches that regenerate silently |
 | `make clean-more` | Reclaim tier 1+2 — adds re-downloadable caches |
 | `make review` | List tier-3 *data* candidates for manual decision |
-| `sparkling-clean thin` | Release space held by local Time Machine snapshots |
+| `plimsoll thin` | Release space held by local Time Machine snapshots |
 | `make docker` | Report Docker reclaimable space. Never touches volumes |
 | `make docker-clean` | Prune build cache + untagged images, then compact |
 | `make tm-status` | Which codified Time Machine exclusions are applied |
@@ -211,22 +216,22 @@ lines of config instead of a signing pipeline.
 
 ## The guard
 
-A launchd LaunchAgent labelled `com.sparklingclean.diskguard`. Checks every
+A launchd LaunchAgent labelled `com.plimsoll.diskguard`. Checks every
 2 hours plus once at login.
 
 | What | Where |
 |---|---|
-| Installed plist (what launchd reads) | `~/Library/LaunchAgents/com.sparklingclean.diskguard.plist` |
+| Installed plist (what launchd reads) | `~/Library/LaunchAgents/com.plimsoll.diskguard.plist` |
 | Script it runs | `bin/disk-guard.zsh` |
-| Shared check logic | `bin/lib/common.zsh` → `sc_run_health_checks` |
-| Plist template (in git) | `launchd/com.sparklingclean.diskguard.plist` |
-| Health log | `~/.local/state/sparkling-clean/sparkling-clean.log` |
-| Notification state | `~/.local/state/sparkling-clean/guard.state` |
-| Backup-failure clock | `~/.local/state/sparkling-clean/tm.state` |
-| Last-backup size cache | `~/.local/state/sparkling-clean/tm-last.tsv` |
+| Shared check logic | `bin/lib/common.zsh` → `pl_run_health_checks` |
+| Plist template (in git) | `launchd/com.plimsoll.diskguard.plist` |
+| Health log | `~/.local/state/plimsoll/plimsoll.log` |
+| Notification state | `~/.local/state/plimsoll/guard.state` |
+| Backup-failure clock | `~/.local/state/plimsoll/tm.state` |
+| Last-backup size cache | `~/.local/state/plimsoll/tm-last.tsv` |
 | launchd stdout / stderr | `.guard.out.log` / `.guard.err.log` (gitignored) |
 
-The template carries a `__SC_ROOT__` placeholder that `make install-guard`
+The template carries a `__PL_ROOT__` placeholder that `make install-guard`
 substitutes with this repo's absolute path, so the installed plist is generated
 rather than hand-edited.
 
@@ -238,7 +243,7 @@ the plist itself.
 Force a run instead of waiting:
 
 ```bash
-launchctl kickstart -k gui/$(id -u)/com.sparklingclean.diskguard
+launchctl kickstart -k gui/$(id -u)/com.plimsoll.diskguard
 ```
 
 launchd rather than cron: it runs a missed interval on wake, so a sleeping laptop
@@ -247,7 +252,7 @@ still gets checked, and it runs inside the GUI session that notifications need.
 ### When it speaks
 
 It **checks** every 2 hours; it **notifies** only on a level change, or once per
-12 hours (`SC_RENOTIFY_H`) while a condition persists. Never on OK.
+12 hours (`PL_RENOTIFY_H`) while a condition persists. Never on OK.
 
 **A silent notification tray is the healthy steady state** — use `make log` to
 confirm it is alive.
@@ -260,7 +265,7 @@ reads WARN in the report and the menu bar and the exit code is still `1` —
 backups genuinely are not happening — but nothing is pushed. Add a second
 complaint and it speaks again: away *and* a filling disk is news. So is any
 CRIT, which is what the Backup age row escalates to if you stay away past
-`SC_TM_CRIT_D`. `--force` ignores the suppression.
+`PL_TM_CRIT_D`. `--force` ignores the suppression.
 
 Signals come in two tiers:
 
@@ -315,7 +320,7 @@ essentially the whole thing, so the two numbers converge.
 All of it sits in the headline because the headline is the row: explanations
 live in tooltips now, so anything not in the headline waits to be hovered. The
 row carries a clock time rather than an
-age because it only ever describes a backup younger than `SC_TM_WARN_D`; two
+age because it only ever describes a backup younger than `PL_TM_WARN_D`; two
 days is the widest gap it has to express, so a weekday disambiguates and no
 date is needed, and today's backups drop the weekday entirely. `0d ago` said
 the same thing about a backup five minutes old and one twenty-three hours old.
@@ -328,19 +333,19 @@ against that backup, and the clause is simply absent when the log no longer has
 it. That means it disappears exactly when the chain has been failing for days,
 which is fine: by then the Backup age row is the one talking.
 
-Thresholds, overridable by env: `SC_WARN_PCT` (15), `SC_CRIT_PCT` (10),
-`SC_TM_WARN_D` (2), `SC_TM_CRIT_D` (7), `SC_TM_FAIL_CRIT_H` (12),
-`SC_RENOTIFY_H` (12).
+Thresholds, overridable by env: `PL_WARN_PCT` (15), `PL_CRIT_PCT` (10),
+`PL_TM_WARN_D` (2), `PL_TM_CRIT_D` (7), `PL_TM_FAIL_CRIT_H` (12),
+`PL_RENOTIFY_H` (12).
 
 **Backup age and backup outcome are separate checks, and they have to be.** Age
 is read from `SnapshotDates`, which only ever records completions — so a Mac
 attempting hourly and failing every single time still reports a healthy-looking
 recent timestamp, and goes on reporting it until the age finally drifts past
-`SC_TM_WARN_D` two days later. `Last attempt` reads `RESULT` instead, the outcome of the most recent
+`PL_TM_WARN_D` two days later. `Last attempt` reads `RESULT` instead, the outcome of the most recent
 attempt, and names the cause rather than a second clock: `Last attempt CRIT: failed — network dropped
 mid-copy`. How long it has been failing is in the row's tooltip, because the `Backup` row already owns
 a duration and two near-but-unequal ones side by side are worse than either. It warns on the first failing check and escalates
-after `SC_TM_FAIL_CRIT_H` hours, so a chain that stops working is caught on the
+after `PL_TM_FAIL_CRIT_H` hours, so a chain that stops working is caught on the
 next two-hourly check rather than on day three.
 
 ## What is here
@@ -402,7 +407,7 @@ LaunchAgent does not have.
 
 And a chain that *is* working can still be mostly garbage — `make report` flags
 large reconstructible directories (container images, package caches, toolchains)
-that are in every backup. The list is codified in `SC_TM_EXCLUDE_CANDIDATES`
+that are in every backup. The list is codified in `PL_TM_EXCLUDE_CANDIDATES`
 (`bin/lib/common.zsh`) and applied with one command, so a rebuilt machine gets
 the same policy:
 
@@ -424,7 +429,7 @@ of Docker's footprint anyway; build cache and untagged images are where the spac
 - No `err_return` — diagnostic tools exit non-zero on benign conditions
   (`smartctl` returns 4 on Apple's harmless GetLogPage artifact)
 - History never escalates current state, so a fixed problem stops alarming
-- The report and the guard share one `sc_run_health_checks`, so they cannot
+- The report and the guard share one `pl_run_health_checks`, so they cannot
   disagree about whether the machine is healthy
 
 ## Requirements

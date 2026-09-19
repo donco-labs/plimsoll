@@ -25,7 +25,7 @@ jobs:
 
       - name: Syntax-check every script
         run: |
-          for f in bin/*.zsh bin/lib/*.zsh bin/sparkling-clean extra/swiftbar/*.sh; do
+          for f in bin/*.zsh bin/lib/*.zsh bin/plimsoll extra/swiftbar/*.sh; do
             zsh -n "$f" && echo "ok  $f"
           done
 
@@ -33,22 +33,22 @@ jobs:
         run: plutil -lint launchd/*.plist
 
       - name: Dispatcher help works
-        run: ./bin/sparkling-clean --help | grep -q "macOS disk triage"
+        run: ./bin/plimsoll --help | grep -q "macOS disk triage"
 
       - name: Unknown subcommand exits 2
         run: |
           set +e
-          ./bin/sparkling-clean not-a-command >/dev/null 2>&1
+          ./bin/plimsoll not-a-command >/dev/null 2>&1
           [ $? -eq 2 ] || { echo "expected exit 2"; exit 1; }
 
       - name: Read-only helpers work unprivileged
         run: |
           zsh -c '
             source bin/lib/common.zsh
-            free=$(sc_free_bytes); total=$(sc_total_bytes)
+            free=$(pl_free_bytes); total=$(pl_total_bytes)
             [[ -n $free && -n $total && $total -gt 0 ]] || { print "container bytes unreadable"; exit 1 }
-            print "free=$free total=$total pct=$(sc_pct_free)"
-            [[ $(sc_human 1500000000) == "1.5 GB" ]] || { print "sc_human wrong"; exit 1 }
+            print "free=$free total=$total pct=$(pl_pct_free)"
+            [[ $(pl_human 1500000000) == "1.5 GB" ]] || { print "pl_human wrong"; exit 1 }
           '
 
       - name: Sparse files are measured by allocation, not logical size
@@ -56,7 +56,7 @@ jobs:
           zsh -c '
             source bin/lib/common.zsh
             mkfile -n 400m /tmp/sparse.bin
-            sz=$(sc_size_of /tmp/sparse.bin)
+            sz=$(pl_size_of /tmp/sparse.bin)
             # ls would report 400 MB; du must report far less.
             (( sz < 10000000 )) || { print "sparse file measured as $sz — regression"; exit 1 }
             print "sparse ok: $sz bytes allocated"
@@ -67,11 +67,11 @@ jobs:
         run: |
           zsh -c '
             source bin/lib/common.zsh
-            sc_run_health_checks
-            lvl=$(sc_overall_level)
+            pl_run_health_checks
+            lvl=$(pl_overall_level)
             [[ $lvl == (OK|WARN|CRIT) ]] || { print "bad level: $lvl"; exit 1 }
-            (( ${#SC_CHECKS} >= 4 )) || { print "expected >=4 checks"; exit 1 }
-            print "level=$lvl checks=${#SC_CHECKS}"
+            (( ${#PL_CHECKS} >= 4 )) || { print "expected >=4 checks"; exit 1 }
+            print "level=$lvl checks=${#PL_CHECKS}"
           '
 
       - name: Undeterminable backup age reports UNKNOWN, never OK
@@ -83,12 +83,12 @@ jobs:
         run: |
           zsh -c '
             source bin/lib/common.zsh
-            sc_tm_days_since_backup() { return 1 }      # simulate unreadable prefs
-            sc_run_health_checks
-            for c in $SC_CHECKS; do
-              [[ $(sc_check_name $c) == Backup ]] || continue
-              [[ $(sc_check_level $c) != OK ]] || { print "FAIL: unreadable backup age reported OK"; exit 1 }
-              print "correctly non-OK: $(sc_check_headline $c)"
+            pl_tm_days_since_backup() { return 1 }      # simulate unreadable prefs
+            pl_run_health_checks
+            for c in $PL_CHECKS; do
+              [[ $(pl_check_name $c) == Backup ]] || continue
+              [[ $(pl_check_level $c) != OK ]] || { print "FAIL: unreadable backup age reported OK"; exit 1 }
+              print "correctly non-OK: $(pl_check_headline $c)"
             done
           '
 
@@ -100,34 +100,34 @@ jobs:
         run: |
           zsh -c '
             source bin/lib/common.zsh
-            export SC_TM_STATE=$(mktemp -d)/tm.state
-            sc_tm_enabled()          { return 0 }
-            sc_tm_days_since_backup() { print -r -- 0 }      # backed up "today"
-            sc_tm_last_backup_epoch() { print -r -- 1700000000 }
-            sc_tm_last_result()       { print -r -- 26 }     # ...and it failed
-            sc_run_health_checks
+            export PL_TM_STATE=$(mktemp -d)/tm.state
+            pl_tm_enabled()          { return 0 }
+            pl_tm_days_since_backup() { print -r -- 0 }      # backed up "today"
+            pl_tm_last_backup_epoch() { print -r -- 1700000000 }
+            pl_tm_last_result()       { print -r -- 26 }     # ...and it failed
+            pl_run_health_checks
             seen=0
-            for c in $SC_CHECKS; do
-              [[ $(sc_check_name $c) == "Last attempt" ]] || continue
+            for c in $PL_CHECKS; do
+              [[ $(pl_check_name $c) == "Last attempt" ]] || continue
               seen=1
-              [[ $(sc_check_level $c) != OK ]] || { print "FAIL: failing attempt reported OK"; exit 1 }
-              print "correctly non-OK: $(sc_check_headline $c)"
+              [[ $(pl_check_level $c) != OK ]] || { print "FAIL: failing attempt reported OK"; exit 1 }
+              print "correctly non-OK: $(pl_check_headline $c)"
             done
             (( seen )) || { print "FAIL: no Last attempt check emitted"; exit 1 }
-            [[ $(sc_overall_level) != OK ]] || { print "FAIL: overall level OK despite failing backups"; exit 1 }
+            [[ $(pl_overall_level) != OK ]] || { print "FAIL: overall level OK despite failing backups"; exit 1 }
           '
 
       - name: Unreadable attempt outcome reports UNKNOWN, never OK
         run: |
           zsh -c '
             source bin/lib/common.zsh
-            sc_tm_enabled()     { return 0 }
-            sc_tm_last_result() { return 1 }               # simulate unreadable prefs
-            sc_run_health_checks
-            for c in $SC_CHECKS; do
-              [[ $(sc_check_name $c) == "Last attempt" ]] || continue
-              [[ $(sc_check_level $c) != OK ]] || { print "FAIL: unreadable outcome reported OK"; exit 1 }
-              print "correctly non-OK: $(sc_check_headline $c)"
+            pl_tm_enabled()     { return 0 }
+            pl_tm_last_result() { return 1 }               # simulate unreadable prefs
+            pl_run_health_checks
+            for c in $PL_CHECKS; do
+              [[ $(pl_check_name $c) == "Last attempt" ]] || continue
+              [[ $(pl_check_level $c) != OK ]] || { print "FAIL: unreadable outcome reported OK"; exit 1 }
+              print "correctly non-OK: $(pl_check_headline $c)"
             done
           '
 
@@ -139,23 +139,23 @@ jobs:
         run: |
           zsh -c '
             source bin/lib/common.zsh
-            export SC_TM_STATE=$(mktemp -d)/tm.state
-            sc_tm_enabled()                 { return 0 }
-            sc_tm_last_backup_epoch()       { print -r -- 1757370669 }
-            sc_tm_last_result()             { print -r -- 26 }
-            sc_tm_destination_reachable()   { return 1 }
-            printf "%s\t%s\n" 1757370669 $(( $(date +%s) - 72*3600 )) > $SC_TM_STATE
-            sc_run_health_checks
+            export PL_TM_STATE=$(mktemp -d)/tm.state
+            pl_tm_enabled()                 { return 0 }
+            pl_tm_last_backup_epoch()       { print -r -- 1757370669 }
+            pl_tm_last_result()             { print -r -- 26 }
+            pl_tm_destination_reachable()   { return 1 }
+            printf "%s\t%s\n" 1757370669 $(( $(date +%s) - 72*3600 )) > $PL_TM_STATE
+            pl_run_health_checks
             seen=0
-            for c in $SC_CHECKS; do
-              [[ $(sc_check_name $c) == "Last attempt" ]] || continue
+            for c in $PL_CHECKS; do
+              [[ $(pl_check_name $c) == "Last attempt" ]] || continue
               seen=1
-              [[ $(sc_check_level $c) == WARN ]] || { print "FAIL: expected WARN, got $(sc_check_level $c)"; exit 1 }
-              print "correctly WARN: $(sc_check_headline $c)"
+              [[ $(pl_check_level $c) == WARN ]] || { print "FAIL: expected WARN, got $(pl_check_level $c)"; exit 1 }
+              print "correctly WARN: $(pl_check_headline $c)"
             done
             (( seen )) || { print "FAIL: no Last attempt check"; exit 1 }
             # Time spent away must not accumulate toward the CRIT clock.
-            age=$(( ( $(date +%s) - $(cut -f2 $SC_TM_STATE) ) / 3600 ))
+            age=$(( ( $(date +%s) - $(cut -f2 $PL_TM_STATE) ) / 3600 ))
             (( age < 1 )) || { print "FAIL: clock not held, ${age}h"; exit 1 }
             print "clock held at now"
           '
@@ -166,17 +166,17 @@ jobs:
         run: |
           zsh -c '
             source bin/lib/common.zsh
-            export SC_TM_STATE=$(mktemp -d)/tm.state
-            sc_tm_enabled()               { return 0 }
-            sc_tm_last_backup_epoch()     { print -r -- 1757370669 }
-            sc_tm_last_result()           { print -r -- 26 }
-            sc_tm_destination_reachable() { return 2 }        # cannot tell
-            printf "%s\t%s\n" 1757370669 $(( $(date +%s) - 13*3600 )) > $SC_TM_STATE
-            sc_run_health_checks
-            for c in $SC_CHECKS; do
-              [[ $(sc_check_name $c) == "Last attempt" ]] || continue
-              [[ $(sc_check_level $c) == CRIT ]] || { print "FAIL: uncertainty went quiet: $(sc_check_level $c)"; exit 1 }
-              print "correctly CRIT despite an unreadable probe: $(sc_check_headline $c)"
+            export PL_TM_STATE=$(mktemp -d)/tm.state
+            pl_tm_enabled()               { return 0 }
+            pl_tm_last_backup_epoch()     { print -r -- 1757370669 }
+            pl_tm_last_result()           { print -r -- 26 }
+            pl_tm_destination_reachable() { return 2 }        # cannot tell
+            printf "%s\t%s\n" 1757370669 $(( $(date +%s) - 13*3600 )) > $PL_TM_STATE
+            pl_run_health_checks
+            for c in $PL_CHECKS; do
+              [[ $(pl_check_name $c) == "Last attempt" ]] || continue
+              [[ $(pl_check_level $c) == CRIT ]] || { print "FAIL: uncertainty went quiet: $(pl_check_level $c)"; exit 1 }
+              print "correctly CRIT despite an unreadable probe: $(pl_check_headline $c)"
             done
           '
 
@@ -186,12 +186,12 @@ jobs:
         run: |
           zsh -c '
             source bin/lib/common.zsh
-            export SC_TM_STATE=$(mktemp -d)/tm.state
-            printf "%s\t%s\n" stale stamp > $SC_TM_STATE
-            sc_tm_enabled()     { return 0 }
-            sc_tm_last_result() { print -r -- 0 }
-            sc_run_health_checks
-            [[ -e $SC_TM_STATE ]] && { print "FAIL: clock survived a successful backup"; exit 1 }
+            export PL_TM_STATE=$(mktemp -d)/tm.state
+            printf "%s\t%s\n" stale stamp > $PL_TM_STATE
+            pl_tm_enabled()     { return 0 }
+            pl_tm_last_result() { print -r -- 0 }
+            pl_run_health_checks
+            [[ -e $PL_TM_STATE ]] && { print "FAIL: clock survived a successful backup"; exit 1 }
             print "clock cleared"
           '
 
@@ -207,7 +207,7 @@ jobs:
             check() {
               local want=$1   # $1 inside tmutil() would be tmutil'"'"'s own, not this one
               tmutil() { print -r -- "    Percent = \"$want\";" }
-              if out=$(sc_tm_progress_pct); then print -r -- "$out"; else print -r -- "OMITTED"; fi
+              if out=$(pl_tm_progress_pct); then print -r -- "$out"; else print -r -- "OMITTED"; fi
             }
             [[ $(check -1) == OMITTED ]] || { print "FAIL: -1 rendered as a percentage"; exit 1 }
             [[ $(check 0.5) == 50.0 ]]   || { print "FAIL: 0.5 did not render as 50.0"; exit 1 }
@@ -221,10 +221,10 @@ jobs:
         run: |
           zsh -c '
             source bin/lib/common.zsh
-            sc_run_health_checks
-            w=$(sc_worst_check)
-            [[ -n $w ]] || { print "sc_worst_check returned empty"; exit 1 }
-            n=$(sc_check_name $w)
+            pl_run_health_checks
+            w=$(pl_worst_check)
+            [[ -n $w ]] || { print "pl_worst_check returned empty"; exit 1 }
+            n=$(pl_check_name $w)
             [[ -n $n ]] || { print "worst check has no name"; exit 1 }
             print "subject=$n"
           '
@@ -246,7 +246,7 @@ jobs:
 
       - name: SwiftBar plugin renders
         run: |
-          out=$(./extra/swiftbar/sparkling-clean.10m.sh)
+          out=$(./extra/swiftbar/plimsoll.10m.sh)
           # The title is an SF Symbol, not text: OK is an outline drive, WARN
           # fills it, and only CRIT swaps the glyph and prepends the subject. The
           # emoji this used to assert on went away in 66cc477. Match the glyph
@@ -257,3 +257,50 @@ jobs:
             || { echo "no menu bar title, or an unknown SF Symbol"; exit 1; }
           echo "$out" | grep -q -- "---" || { echo "no separator"; exit 1; }
           echo "$out"
+
+      - name: Migration from sparkling-clean keeps the history and leaves one guard
+        run: |
+          set -e
+          # The fault this guards against is a half-migrated machine running two
+          # guards: double notifications, two writers on one log, and de-dup
+          # state split across two files so neither suppresses correctly. The
+          # fixture is a whole fake $HOME, because every path the migration
+          # touches hangs off it.
+          fake=$(mktemp -d)
+          old=$fake/.local/state/sparkling-clean
+          plugins="$fake/Library/Application Support/SwiftBarPlugins"
+          mkdir -p "$old" "$fake/Library/LaunchAgents" "$plugins"
+          printf 'history that must survive\n' > "$old/sparkling-clean.log"
+          printf 'CRIT\t1788660536\n'          > "$old/guard.state"
+          sed 's|com.plimsoll.diskguard|com.sparklingclean.diskguard|' \
+            launchd/com.plimsoll.diskguard.plist \
+            > "$fake/Library/LaunchAgents/com.sparklingclean.diskguard.plist"
+          ln -s /nonexistent/sparkling-clean.10m.sh "$plugins/sparkling-clean.10m.sh"
+
+          out=$(HOME=$fake SC_WARN_PCT=99 zsh -c 'source bin/lib/common.zsh && pl_migrate_legacy' 2>&1)
+          echo "$out"
+
+          [[ -e $fake/Library/LaunchAgents/com.sparklingclean.diskguard.plist ]] \
+            && { echo "FAIL: old LaunchAgent survived"; exit 1; }
+          [[ -d $old ]] && { echo "FAIL: old state directory survived"; exit 1; }
+          grep -q "history that must survive" "$fake/.local/state/plimsoll/plimsoll.log" \
+            || { echo "FAIL: health log did not carry over"; exit 1; }
+          grep -q "CRIT" "$fake/.local/state/plimsoll/guard.state" \
+            || { echo "FAIL: guard de-dup state did not carry over"; exit 1; }
+          [[ -e $plugins/sparkling-clean.10m.sh ]] \
+            && { echo "FAIL: dead SwiftBar symlink survived"; exit 1; }
+          [[ -L $plugins/plimsoll.10m.sh ]] \
+            || { echo "FAIL: SwiftBar symlink was not repointed"; exit 1; }
+          echo "$out" | grep -q "SC_\* variable" \
+            || { echo "FAIL: stale SC_* override was not reported"; exit 1; }
+
+          # Idempotent, and non-destructive when both names have state: run it
+          # again with the old directory recreated and the new one populated.
+          mkdir -p "$old"
+          printf 'stale\n' > "$old/sparkling-clean.log"
+          HOME=$fake zsh -c 'source bin/lib/common.zsh && pl_migrate_legacy' 2>&1
+          grep -q "history that must survive" "$fake/.local/state/plimsoll/plimsoll.log" \
+            || { echo "FAIL: second run clobbered the migrated log"; exit 1; }
+          [[ -d $old ]] || { echo "FAIL: second run deleted state it could not merge"; exit 1; }
+          rm -rf "$fake"
+          echo "migration holds"

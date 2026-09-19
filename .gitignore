@@ -4,3 +4,7 @@
 *.log
 
 .DS_Store
+
+# generated from docs/article-*.md by docs/assets/build-print.py
+docs/article-*.html
+docs/article-*.pdf

@@ -1,7 +1,7 @@
 #!/usr/bin/env zsh
-# <xbar.title>sparkling-clean</xbar.title>
+# <xbar.title>plimsoll</xbar.title>
 # <xbar.version>v1.0</xbar.version>
-# <xbar.author>sparkling-clean</xbar.author>
+# <xbar.author>plimsoll</xbar.author>
 # <xbar.desc>Disk, swap-headroom and Time Machine health in the menu bar.</xbar.desc>
 # <xbar.dependencies>zsh</xbar.dependencies>
 # <swiftbar.hideAbout>true</swiftbar.hideAbout>
@@ -10,7 +10,7 @@
 #
 # SwiftBar / xbar plugin. Install:
 #   brew install --cask swiftbar
-#   ln -s "$PWD/extra/swiftbar/sparkling-clean.10m.sh" ~/Library/Application\ Support/SwiftBar/
+#   ln -s "$PWD/extra/swiftbar/plimsoll.10m.sh" ~/Library/Application\ Support/SwiftBar/
 #
 # Reads disk-guard --json (~0.4s). It deliberately does NOT run the full report,
 # which walks 100k-entry trees with find(1) and takes tens of seconds — far too
@@ -43,39 +43,39 @@ setopt no_err_return
 #
 # Indices rather than names, because SwiftBar's 256-colour table is its own
 # arithmetic: these three resolve to rgb(255,135,0), pure red, and #808080.
-local SC_TINT_WARN=$'\e[38;5;208m'
-local SC_TINT_CRIT=$'\e[38;5;196m'
-local SC_TINT_DIM=$'\e[38;5;244m'
+local PL_TINT_WARN=$'\e[38;5;208m'
+local PL_TINT_CRIT=$'\e[38;5;196m'
+local PL_TINT_DIM=$'\e[38;5;244m'
 
 # Resolve the toolkit whether this is symlinked from a checkout or installed by
 # Homebrew. SwiftBar runs plugins with a minimal PATH, so brew --prefix is not
 # assumed to be on it.
-local SC=""
+local PL=""
 for candidate in \
   "${0:A:h:h:h}/bin/disk-guard.zsh" \
-  "/opt/homebrew/opt/sparkling-clean/libexec/bin/disk-guard.zsh" \
-  "/usr/local/opt/sparkling-clean/libexec/bin/disk-guard.zsh"
+  "/opt/homebrew/opt/plimsoll/libexec/bin/disk-guard.zsh" \
+  "/usr/local/opt/plimsoll/libexec/bin/disk-guard.zsh"
 do
-  [[ -x $candidate || -r $candidate ]] && { SC=$candidate; break }
+  [[ -x $candidate || -r $candidate ]] && { PL=$candidate; break }
 done
 
-if [[ -z $SC ]]; then
+if [[ -z $PL ]]; then
   print -r -- "💾 ?"
   print -r -- "---"
-  print -r -- "${SC_TINT_CRIT}sparkling-clean not found | color=red ansi=true"
+  print -r -- "${PL_TINT_CRIT}plimsoll not found | color=red ansi=true"
   print -r -- "Expected beside this plugin or under brew's opt prefix."
   exit 0
 fi
 
-source ${SC:h}/lib/common.zsh 2>/dev/null
+source ${PL:h}/lib/common.zsh 2>/dev/null
 
 local json
-json=$(zsh "$SC" --json 2>/dev/null)
-local cli=${SC:h}/sparkling-clean
+json=$(zsh "$PL" --json 2>/dev/null)
+local cli=${PL:h}/plimsoll
 if [[ -z $json ]]; then
   print -r -- "💾 ?"
   print -r -- "---"
-  print -r -- "${SC_TINT_CRIT}guard produced no output | color=red ansi=true"
+  print -r -- "${PL_TINT_CRIT}guard produced no output | color=red ansi=true"
   exit 0
 fi
 
@@ -113,7 +113,7 @@ case $level in
 esac
 
 print -r -- "---"
-print -r -- "${SC_TINT_DIM}sparkling-clean · disk and backup health | size=11 color=gray ansi=true href=https://github.com/donco-labs/sparkling-clean"
+print -r -- "${PL_TINT_DIM}plimsoll · disk and backup health | size=11 color=gray ansi=true href=https://github.com/donco-labs/plimsoll"
 print -r -- "---"
 
 # SwiftBar sizes the dropdown to its longest row, and a note is a full sentence.
@@ -126,7 +126,7 @@ print -r -- "---"
 #
 # A literal "|" would be read as the start of SwiftBar's parameter list and
 # silently eat the rest of the row, so it is replaced before emitting.
-sc_menu_wrapped() {   # $1 = text · $2 = leading indent · $3 = params · $4 = tint
+pl_menu_wrapped() {   # $1 = text · $2 = leading indent · $3 = params · $4 = tint
   local text=${1//|/\u2502} line
   print -r -- "$text" | fold -s -w 64 | while IFS= read -r line; do
     [[ -n ${line// } ]] || continue
@@ -180,9 +180,9 @@ print -r -- "$json" \
       # legible against a light menu and a dark one both.
       local params="" icon="✓" tint=""
       case $l in
-        (CRIT) icon="✗"; tint=$SC_TINT_CRIT; params="color=red ansi=true"    ;;
-        (WARN) icon="△"; tint=$SC_TINT_WARN; params="color=orange ansi=true" ;;
-        (*)              tint=$SC_TINT_DIM;  params="color=gray ansi=true"   ;;
+        (CRIT) icon="✗"; tint=$PL_TINT_CRIT; params="color=red ansi=true"    ;;
+        (WARN) icon="△"; tint=$PL_TINT_WARN; params="color=orange ansi=true" ;;
+        (*)              tint=$PL_TINT_DIM;  params="color=gray ansi=true"   ;;
       esac
       [[ -n $tip && $tip != "$h" ]] && params="${params:+$params }tooltip=\"${tip}\""
       print -r -- "${tint}${icon} ${n}: ${h}${params:+ | $params}"
@@ -206,11 +206,11 @@ print -r -- "$json" \
 # A point-in-time check tells you where you are; the trend tells you where you
 # are going, which is the view that would have caught the original incident
 # months earlier.
-local hist=$(sc_free_history 24 2>/dev/null)
+local hist=$(pl_free_history 24 2>/dev/null)
 if [[ -n $hist ]]; then
-  local spark=$(print -r -- "$hist" | sc_sparkline)
-  local delta=$(print -r -- "$hist" | sc_free_delta)
-  [[ -n $spark ]] && print -r -- "   ${SC_TINT_DIM}${spark}  ${delta} | font=Menlo size=12 color=gray ansi=true"
+  local spark=$(print -r -- "$hist" | pl_sparkline)
+  local delta=$(print -r -- "$hist" | pl_free_delta)
+  [[ -n $spark ]] && print -r -- "   ${PL_TINT_DIM}${spark}  ${delta} | font=Menlo size=12 color=gray ansi=true"
 fi
 
 # Notes are context, never alarming — dimmed, matching the CHECK/NOTE split.
@@ -220,7 +220,7 @@ local notes_blob=$(print -r -- "$json" | sed -E 's/.*"notes":\[//; s/\].*//')
 if [[ -n $notes_blob ]]; then
   print -r -- "$notes_blob" | tr ',' '\n' | sed -E 's/^"//; s/"$//' \
     | while read -r note; do
-        [[ -n $note ]] && sc_menu_wrapped "$note" "" "size=11 color=gray ansi=true" "$SC_TINT_DIM"
+        [[ -n $note ]] && pl_menu_wrapped "$note" "" "size=11 color=gray ansi=true" "$PL_TINT_DIM"
       done
 fi
 
@@ -245,18 +245,18 @@ fi
 print -r -- "Refresh | refresh=true"
 
 # Where the space actually lives. Read from the cache rather than measured here
-# — see sc_sizes_refresh for why a menu bar item must not walk 100k-entry trees
+# — see pl_sizes_refresh for why a menu bar item must not walk 100k-entry trees
 # every ten minutes. Numbers are up to half a day old, which is the right
 # resolution for watching creep.
-local sizes=$(sc_sizes_read 2>/dev/null)
+local sizes=$(pl_sizes_read 2>/dev/null)
 if [[ -n $sizes ]]; then
-  local age=$(sc_sizes_age_hours)
+  local age=$(pl_sizes_age_hours)
   local when="${age}h ago"; (( age < 1 )) && when="just now"
   print -r -- "---"
   print -r -- "Watchlist · measured ${when}"
   # No cap — this is a submenu and the whole point is seeing the shape of the
   # set. A floor instead, so trivial entries do not pad the list.
-  : ${SC_WATCH_FLOOR:=104857600}          # 100 MB
+  : ${PL_WATCH_FLOOR:=104857600}          # 100 MB
   # Rows carry a colour and a tooltip, which took some care: 0.4.0 gave them a
   #   | bash=/usr/bin/open param1="<path>" terminal=false
   # action and the submenu stopped opening at all, so for two versions these
@@ -280,22 +280,22 @@ if [[ -n $sizes ]]; then
   local -a order=(clean-safe clean-more docker-clean yours)
   #
   # Headings name the CLI, not the make target. `make clean-safe` exists only in
-  # a clone -- the Homebrew install ships bin/sparkling-clean and no Makefile,
+  # a clone -- the Homebrew install ships bin/plimsoll and no Makefile,
   # and the targets are one-line wrappers over the CLI anyway. The CLI form is
   # also the safer thing to put in a menu: it is dry-run until you add --apply,
   # where the make targets already carry it. The heading tooltips name the make
   # shortcut for anyone working from a checkout.
   local -A heading=(
-    clean-safe    "Tier 1 · sparkling-clean reclaim"
-    clean-more    "Tier 2 · sparkling-clean reclaim --tier 2"
-    docker-clean  "Containers · sparkling-clean docker"
+    clean-safe    "Tier 1 · plimsoll reclaim"
+    clean-more    "Tier 2 · plimsoll reclaim --tier 2"
+    docker-clean  "Containers · plimsoll docker"
     yours         "Yours · never reclaimed automatically"
   )
   local -A heading_tip=(
     clean-safe    "Caches that regenerate with no action from you. Dry-run by default: add --apply to actually remove. From a clone: make clean-safe."
     clean-more    "Includes tier 1, plus caches that cost a re-download or a rebuild. Dry-run by default: add --apply. From a clone: make clean-more."
-    docker-clean  "Neither reclaim tier touches Docker. sparkling-clean docker prunes build cache and untagged images, never volumes; --apply --compact to also shrink the disk image. From a clone: make docker-clean."
-    yours         "Data, not cache. sparkling-clean reclaim --tier 3 lists these for you to decide on and never deletes any of them — note that the tiers are cumulative, so adding --apply to that would still clear tiers 1 and 2. From a clone: make review."
+    docker-clean  "Neither reclaim tier touches Docker. plimsoll docker prunes build cache and untagged images, never volumes; --apply --compact to also shrink the disk image. From a clone: make docker-clean."
+    yours         "Data, not cache. plimsoll reclaim --tier 3 lists these for you to decide on and never deletes any of them — note that the tiers are cumulative, so adding --apply to that would still clear tiers 1 and 2. From a clone: make review."
   )
   # Every one of these is initialised, because `local name` with no value is
   # `typeset name` at script scope, and zsh PRINTS an existing parameter rather
@@ -306,41 +306,41 @@ if [[ -n $sizes ]]; then
   # A here-string rather than a pipe: a `while read` on the right of a pipe runs
   # in a subshell, and every group built inside it would be discarded at the done.
   while IFS=$'\t' read -r b pth; do
-    tgt=$(sc_watch_target "$pth"); part=""
+    tgt=$(pl_watch_target "$pth"); part=""
     [[ $tgt == */part ]] && { part=" (part)"; tgt=${tgt%/part} }
 
-    series=$(sc_sizes_series "$pth" 2>/dev/null)
+    series=$(pl_sizes_series "$pth" 2>/dev/null)
     delta=""; spark=""; span=""
     if [[ -n $series ]]; then
-      delta=$(print -r -- "$series" | sc_series_delta) || delta=""
-      spark=$(print -r -- "$series" | sc_sparkline)    || spark=""
-      # SC_TREND_WINDOW_D is how far back to look, not how much history exists.
+      delta=$(print -r -- "$series" | pl_series_delta) || delta=""
+      spark=$(print -r -- "$series" | pl_sparkline)    || spark=""
+      # PL_TREND_WINDOW_D is how far back to look, not how much history exists.
       # Saying "in 7d" over two samples 12h apart is a claim about a week that
       # nothing in the file supports -- and for the first week of any install,
       # that is every row.
-      span=$(print -r -- "$series" | sc_series_span)   || span=""
+      span=$(print -r -- "$series" | pl_series_span)   || span=""
     fi
     if [[ -n $delta ]]; then
-      dlabel=$(sc_human_delta $delta)
+      dlabel=$(pl_human_delta $delta)
     else
       # Honest rather than reassuring: one measurement is not a trend, and for
       # the first week after this ships that is every row.
       dlabel="new"
     fi
 
-    (( b >= SC_WATCH_FLOOR )) || continue
+    (( b >= PL_WATCH_FLOOR )) || continue
     (( shown++ ))
 
     # The tooltip says what the row cannot fit: where it has been, and what
     # would reclaim it. "(part)" in the row is the warning; this is the detail.
-    tip="$(sc_human $b) now"
+    tip="$(pl_human $b) now"
     if [[ -n $delta ]]; then
       # The sparkline is scaled to its own range, so a directory that moved 30 MB
       # draws the same dramatic slope as one that moved 30 GB. Naming the number
       # a steady row actually moved by is what keeps the picture honest.
-      local window=$(sc_window_phrase ${span:-0})
+      local window=$(pl_window_phrase ${span:-0})
       if [[ $dlabel == steady ]]; then
-        tip+=" · steady ${window} (±$(sc_human $(( delta < 0 ? -delta : delta ))))"
+        tip+=" · steady ${window} (±$(pl_human $(( delta < 0 ? -delta : delta ))))"
       else
         tip+=" · ${dlabel} ${window}"
       fi
@@ -349,14 +349,14 @@ if [[ -n $sizes ]]; then
       tip+=" · no trend yet, needs a second measurement"
     fi
     case $tgt in
-      (clean-safe)   tip+=" · sparkling-clean reclaim takes ${part:+named caches inside }this" ;;
-      (clean-more)   tip+=" · sparkling-clean reclaim --tier 2 takes ${part:+part of }this, at the cost of a re-download" ;;
-      (docker-clean) tip+=" · neither reclaim tier touches this — sparkling-clean docker does" ;;
+      (clean-safe)   tip+=" · plimsoll reclaim takes ${part:+named caches inside }this" ;;
+      (clean-more)   tip+=" · plimsoll reclaim --tier 2 takes ${part:+part of }this, at the cost of a re-download" ;;
+      (docker-clean) tip+=" · neither reclaim tier touches this — plimsoll docker does" ;;
       (*)            tip+=" · data, not cache: nothing here will delete it for you" ;;
     esac
 
     row=$(printf -- '--%s%10s  %-7s  %s%s' \
-      "$SC_TINT_DIM" "$(sc_human $b)" "$dlabel" "${pth/#$HOME/~}" "$part")
+      "$PL_TINT_DIM" "$(pl_human $b)" "$dlabel" "${pth/#$HOME/~}" "$part")
     group_rows[$tgt]+="${row} | color=gray ansi=true tooltip=\"${tip//\"/}\""$'\n'
   done <<< "$sizes"
 
@@ -364,7 +364,7 @@ if [[ -n $sizes ]]; then
   for g in $order; do
     [[ -n ${group_rows[$g]:-} ]] || continue
     print -r -- "-----"
-    print -r -- "--${SC_TINT_DIM}${heading[$g]} | color=gray ansi=true tooltip=\"${heading_tip[$g]//\"/}\""
+    print -r -- "--${PL_TINT_DIM}${heading[$g]} | color=gray ansi=true tooltip=\"${heading_tip[$g]//\"/}\""
     print -rn -- "${group_rows[$g]}"
   done
 
@@ -374,20 +374,20 @@ if [[ -n $sizes ]]; then
   # so the directories under the display floor are counted in the movement too.
   local tot=$(print -r -- "$sizes" | awk -F'\t' '{s+=$1} END{print s+0}')
   local cnt=$(print -r -- "$sizes" | grep -c .)
-  local totline="$(sc_human $tot) across ${cnt} watched directories"
-  local tseries=$(sc_sizes_total_series 2>/dev/null)
-  local tdelta="" tspark="" tspan="" ttip="$(sc_human $tot) now"
+  local totline="$(pl_human $tot) across ${cnt} watched directories"
+  local tseries=$(pl_sizes_total_series 2>/dev/null)
+  local tdelta="" tspark="" tspan="" ttip="$(pl_human $tot) now"
   if [[ -n $tseries ]]; then
-    tdelta=$(print -r -- "$tseries" | sc_series_delta) || tdelta=""
-    tspark=$(print -r -- "$tseries" | sc_sparkline)    || tspark=""
-    tspan=$(print -r -- "$tseries" | sc_series_span)   || tspan=""
+    tdelta=$(print -r -- "$tseries" | pl_series_delta) || tdelta=""
+    tspark=$(print -r -- "$tseries" | pl_sparkline)    || tspark=""
+    tspan=$(print -r -- "$tseries" | pl_series_span)   || tspan=""
   fi
   if [[ -n $tdelta ]]; then
-    local tlabel=$(sc_human_delta $tdelta)
-    local twindow=$(sc_window_phrase ${tspan:-0})
+    local tlabel=$(pl_human_delta $tdelta)
+    local twindow=$(pl_window_phrase ${tspan:-0})
     totline+=" · ${tlabel} ${twindow}"
     if [[ $tlabel == steady ]]; then
-      ttip+=" · steady ${twindow} (±$(sc_human $(( tdelta < 0 ? -tdelta : tdelta ))))"
+      ttip+=" · steady ${twindow} (±$(pl_human $(( tdelta < 0 ? -tdelta : tdelta ))))"
     else
       ttip+=" · ${tlabel} ${twindow}"
     fi
@@ -397,19 +397,19 @@ if [[ -n $sizes ]]; then
   fi
   (( cnt > shown )) && ttip+=" · counts all ${cnt} watched directories, including $(( cnt - shown )) too small to list"
   print -r -- "-----"
-  print -r -- "--${SC_TINT_DIM}${totline} | color=gray ansi=true tooltip=\"${ttip//\"/}\""
-  print -r -- "--${SC_TINT_DIM}Caches and images regrow; watch the shape, not the total. | color=gray ansi=true"
+  print -r -- "--${PL_TINT_DIM}${totline} | color=gray ansi=true tooltip=\"${ttip//\"/}\""
+  print -r -- "--${PL_TINT_DIM}Caches and images regrow; watch the shape, not the total. | color=gray ansi=true"
 fi
 print -r -- "---"
-print -r -- "About sparkling-clean"
-print -r -- "--${SC_TINT_DIM}Version $(sc_version "$SC") | color=gray ansi=true"
-print -r -- "--${SC_TINT_DIM}Warn below ${SC_WARN_PCT}% free · critical below ${SC_CRIT_PCT}% | color=gray ansi=true"
-print -r -- "--${SC_TINT_DIM}Backup stale after ${SC_TM_WARN_D}d · critical after ${SC_TM_CRIT_D}d | color=gray ansi=true"
-print -r -- "--${SC_TINT_DIM}Failing attempts critical after ${SC_TM_FAIL_CRIT_H}h | color=gray ansi=true"
+print -r -- "About plimsoll"
+print -r -- "--${PL_TINT_DIM}Version $(pl_version "$PL") | color=gray ansi=true"
+print -r -- "--${PL_TINT_DIM}Warn below ${PL_WARN_PCT}% free · critical below ${PL_CRIT_PCT}% | color=gray ansi=true"
+print -r -- "--${PL_TINT_DIM}Backup stale after ${PL_TM_WARN_D}d · critical after ${PL_TM_CRIT_D}d | color=gray ansi=true"
+print -r -- "--${PL_TINT_DIM}Failing attempts critical after ${PL_TM_FAIL_CRIT_H}h | color=gray ansi=true"
 print -r -- "-----"
-print -r -- "--What these checks mean… | href=https://github.com/donco-labs/sparkling-clean/blob/main/docs/GUIDE.md"
-print -r -- "--Repository… | href=https://github.com/donco-labs/sparkling-clean"
-print -r -- "--Report an issue… | href=https://github.com/donco-labs/sparkling-clean/issues/new"
+print -r -- "--What these checks mean… | href=https://github.com/donco-labs/plimsoll/blob/main/docs/GUIDE.md"
+print -r -- "--Repository… | href=https://github.com/donco-labs/plimsoll"
+print -r -- "--Report an issue… | href=https://github.com/donco-labs/plimsoll/issues/new"
 print -r -- "-----"
-print -r -- "--${SC_TINT_DIM}Checks run every 2h in the background | color=gray ansi=true"
-print -r -- "--${SC_TINT_DIM}Nothing here changes your Mac without asking | color=gray ansi=true"
+print -r -- "--${PL_TINT_DIM}Checks run every 2h in the background | color=gray ansi=true"
+print -r -- "--${PL_TINT_DIM}Nothing here changes your Mac without asking | color=gray ansi=true"

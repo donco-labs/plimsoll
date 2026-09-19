@@ -1,5 +1,5 @@
 #!/usr/bin/env zsh
-# sparkling-clean — subcommand dispatcher.
+# plimsoll — subcommand dispatcher.
 #
 # The repo drives everything through `make`, which is fine in a checkout but
 # useless once Homebrew has installed the scripts into libexec. This is the
@@ -22,9 +22,9 @@ local -A CMDS=(
 )
 
 usage() {
-  print -r -- "sparkling-clean — macOS disk triage toolkit"
+  print -r -- "plimsoll — macOS disk triage toolkit"
   print -r -- ""
-  print -r -- "usage: sparkling-clean <command> [options]"
+  print -r -- "usage: plimsoll <command> [options]"
   print -r -- ""
   print -r -- "  report        full read-only diagnostic, ending in a verdict"
   print -r -- "  check         run the health guard once (exit 0 ok / 1 warn / 2 crit)"
@@ -45,17 +45,17 @@ local cmd=${1:-}
 case $cmd in
   ""|-h|--help|help) usage ;;
   version|-v|--version)
-    # sc_version owns the three-source resolution; this and the SwiftBar About
+    # pl_version owns the three-source resolution; this and the SwiftBar About
     # submenu used to carry their own copy of the sed, which is how they could
     # have disagreed.
     source $here/lib/common.zsh 2>/dev/null
-    print -r -- "sparkling-clean $(sc_version ${0:A})" ;;
+    print -r -- "plimsoll $(pl_version ${0:A})" ;;
   thin)
     # Space that deletions did not return is usually held by local snapshots.
     # This is the one operation people most often need and least often know
     # about, so it explains itself before doing anything.
     local n=0
-    source $here/lib/common.zsh 2>/dev/null && n=$(sc_snapshot_count)
+    source $here/lib/common.zsh 2>/dev/null && n=$(pl_snapshot_count)
     print -r -- "Local Time Machine snapshots on this Mac: ${n}"
     print -r -- ""
     print -r -- "These hold on to blocks from files you have deleted. Until they are"
@@ -70,28 +70,28 @@ case $cmd in
     # the thing at risk. Nothing on the destination can be harmed either way --
     # what you lose is the run in flight, which is the expensive part when a
     # chain has been failing and one attempt has finally started to land.
-    if sc_tm_running; then
-      local prog=$(sc_tm_progress_pct)
+    if pl_tm_running; then
+      local prog=$(pl_tm_progress_pct)
       print -r -- ""
       print -r -- "A backup is RUNNING right now$( [[ -n $prog ]] && print -n " (${prog}%)" )."
       print -r -- "Thinning these snapshots while it reads from them will most likely abort"
       print -r -- "it. Your existing backups are not at risk — only the run in progress."
       print -r -- "Let it finish first; thinning takes seconds and will still be there."
-      if [[ -z ${SC_ALLOW_DURING_BACKUP:-} ]]; then
+      if [[ -z ${PL_ALLOW_DURING_BACKUP:-} ]]; then
         print -r -- ""
-        print -r -- "Refusing. Set SC_ALLOW_DURING_BACKUP=1 to override."
+        print -r -- "Refusing. Set PL_ALLOW_DURING_BACKUP=1 to override."
         exit 1
       fi
     fi
     # A confirmation prompt should be readable; 21 snapshot names are not.
-    print -r -- "  oldest: $(sc_snapshot_list | head -1)"
-    print -r -- "  newest: $(sc_snapshot_list | tail -1)"
+    print -r -- "  oldest: $(pl_snapshot_list | head -1)"
+    print -r -- "  newest: $(pl_snapshot_list | tail -1)"
     print -r -- ""
     print -r -- "Deletes all but the NEWEST snapshot, one at a time:"
     print -r -- "      sudo tmutil deletelocalsnapshots <date>"
     print -r -- "The newest is kept because Time Machine uses it as the baseline for"
     print -r -- "its next incremental; older ones pin the most deleted data anyway."
-    print -r -- "SC_THIN_ALL=1 removes every snapshot instead, baseline included."
+    print -r -- "PL_THIN_ALL=1 removes every snapshot instead, baseline included."
     print -r -- ""
     # Shell startup can be noisy — an oh-my-zsh update prompt, a version-manager
     # notice — and anything left in the input buffer gets eaten by the next read,
@@ -110,48 +110,51 @@ case $cmd in
     fi
     [[ $reply == [yY]* ]] || { print -r -- "Cancelled."; exit 0 }
 
-    local before=$(sc_free_bytes)
+    local before=$(pl_free_bytes)
     # Through the shared helper, not a second copy of the command. The inline
     # version here silently missed the change that made thinning keep Time
     # Machine's baseline, exactly as an inline copy of the progress-percent
     # expression missed its fix.
-    sc_thin_snapshots
-    local after=$(sc_free_bytes)
+    pl_thin_snapshots
+    local after=$(pl_free_bytes)
     print -r -- ""
     if [[ -n $before && -n $after ]]; then
-      print -r -- "Reclaimed $(sc_human $(( after - before ))). Snapshots now: $(sc_snapshot_count)."
+      print -r -- "Reclaimed $(pl_human $(( after - before ))). Snapshots now: $(pl_snapshot_count)."
     else
-      print -r -- "Thinned. Free space could not be measured, so the amount reclaimed is unknown. Snapshots now: $(sc_snapshot_count)."
+      print -r -- "Thinned. Free space could not be measured, so the amount reclaimed is unknown. Snapshots now: $(pl_snapshot_count)."
     fi
 
     # The menu bar caches its last render for the plugin's interval, so without
     # this the warning persists for up to ten minutes after it stops being true.
     # -g keeps focus in this window.
-    open -g "swiftbar://refreshplugin?name=sparkling-clean" 2>/dev/null
+    open -g "swiftbar://refreshplugin?name=plimsoll" 2>/dev/null
     ;;
   install-guard)
-    local plist=$HOME/Library/LaunchAgents/com.sparklingclean.diskguard.plist
+    local plist=$HOME/Library/LaunchAgents/com.plimsoll.diskguard.plist
+    # Before anything loads: clear a sparkling-clean install if one is still
+    # here. Two guards on one machine notify twice and split their de-dup state.
+    source $here/lib/common.zsh 2>/dev/null && pl_migrate_legacy
     mkdir -p ${plist:h}
     # Checkout layout puts launchd/ beside bin/; Homebrew installs it inside
     # libexec alongside the scripts. Look in both.
     local tmpl
-    for tmpl in $here/launchd/com.sparklingclean.diskguard.plist \
-                $here/../launchd/com.sparklingclean.diskguard.plist; do
+    for tmpl in $here/launchd/com.plimsoll.diskguard.plist \
+                $here/../launchd/com.plimsoll.diskguard.plist; do
       [[ -r $tmpl ]] && break
     done
     [[ -r $tmpl ]] || { print -ru2 -- "plist template not found"; exit 1 }
-    sed "s|__SC_ROOT__|${here:h}|g" $tmpl > $plist
+    sed "s|__PL_ROOT__|${here:h}|g" $tmpl > $plist
     launchctl unload $plist 2>/dev/null
     launchctl load  $plist && print -r -- "loaded — checks every 2h, notifies on WARN/CRIT" ;;
   uninstall-guard)
-    local plist=$HOME/Library/LaunchAgents/com.sparklingclean.diskguard.plist
+    local plist=$HOME/Library/LaunchAgents/com.plimsoll.diskguard.plist
     launchctl unload $plist 2>/dev/null
     rm -f $plist && print -r -- "removed" ;;
   *)
     local script=${CMDS[$cmd]:-}
     if [[ -z $script ]]; then
-      print -ru2 -- "sparkling-clean: unknown command '$cmd'"
-      print -ru2 -- "try: sparkling-clean --help"
+      print -ru2 -- "plimsoll: unknown command '$cmd'"
+      print -ru2 -- "try: plimsoll --help"
       exit 2
     fi
     exec zsh $here/$script "$@" ;;
