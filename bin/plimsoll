@@ -34,6 +34,7 @@ usage() {
   print -r -- "  thin          release space held by local Time Machine snapshots"
   print -r -- "  install-guard install the launchd watchdog (checks every 2h)"
   print -r -- "  uninstall-guard"
+  print -r -- "  guard-status  show whether the launchd watchdog is loaded"
   print -r -- "  version"
   print -r -- ""
   print -r -- "Every destructive command needs --apply. Pass --help to any of them."
@@ -150,6 +151,8 @@ case $cmd in
     local plist=$HOME/Library/LaunchAgents/com.plimsoll.diskguard.plist
     launchctl unload $plist 2>/dev/null
     rm -f $plist && print -r -- "removed" ;;
+  guard-status)
+    launchctl list | grep com.plimsoll.diskguard || print -r -- "not loaded (plimsoll install-guard)" ;;
   *)
     local script=${CMDS[$cmd]:-}
     if [[ -z $script ]]; then
