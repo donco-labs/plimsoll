@@ -61,6 +61,9 @@ then moves `~/.local/state/sparkling-clean` to `~/.local/state/plimsoll` with
 the health history the trend sparkline is drawn from, and repoints the SwiftBar
 symlink. `SC_*` overrides are now `PL_*`; any still set are named, not migrated.
 
+For a fresh Mac mini, including the Time Machine exclusion policy and watchdog
+setup, see the [Mac mini installation guide](docs/INSTALL.md).
+
 ## Quick start
 
 ```bash
