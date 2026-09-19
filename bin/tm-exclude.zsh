@@ -6,7 +6,7 @@
 #   ./bin/tm-exclude.zsh --status   applied / not-applied table
 #   ./bin/tm-exclude.zsh --undo     remove exclusions this list added
 #
-# The candidate list lives in lib/common.zsh (SC_TM_EXCLUDE_CANDIDATES) and is
+# The candidate list lives in lib/common.zsh (PL_TM_EXCLUDE_CANDIDATES) and is
 # versioned, so a rebuilt machine gets the same policy with one command.
 #
 # NOTE: tmutil addexclusion needs Full Disk Access. Run this from a terminal that
@@ -21,7 +21,7 @@
 emulate -L zsh
 setopt no_err_return
 source ${0:A:h}/lib/common.zsh
-sc_require_macos
+pl_require_macos
 
 local mode=dry
 while (( $# )); do
@@ -37,48 +37,48 @@ done
 
 local -a present missing already
 local c
-for c in $SC_TM_EXCLUDE_CANDIDATES; do
+for c in $PL_TM_EXCLUDE_CANDIDATES; do
   if [[ ! -e $c ]];        then missing+=("$c")
-  elif sc_tm_excluded $c;  then already+=("$c")
+  elif pl_tm_excluded $c;  then already+=("$c")
   else                          present+=("$c")
   fi
 done
 
 if [[ $mode == status ]]; then
-  sc_hdr "Time Machine exclusion policy"
-  for c in $already; do sc_ok   "${c/#$HOME/~}" ; done
-  for c in $present; do sc_warn "${c/#$HOME/~}  — exists, NOT excluded" ; done
-  for c in $missing; do sc_dim  "      absent   ${c/#$HOME/~}" ; done
+  pl_hdr "Time Machine exclusion policy"
+  for c in $already; do pl_ok   "${c/#$HOME/~}" ; done
+  for c in $present; do pl_warn "${c/#$HOME/~}  — exists, NOT excluded" ; done
+  for c in $missing; do pl_dim  "      absent   ${c/#$HOME/~}" ; done
   print
-  print -r -- "      ${#already} applied · ${#present} pending · ${#missing} absent (of ${#SC_TM_EXCLUDE_CANDIDATES})"
+  print -r -- "      ${#already} applied · ${#present} pending · ${#missing} absent (of ${#PL_TM_EXCLUDE_CANDIDATES})"
   print
   exit $(( ${#present} > 0 ))
 fi
 
 if [[ $mode == undo ]]; then
-  sc_hdr "Removing exclusions"
-  (( ${#already} == 0 )) && { sc_ok "nothing to remove"; exit 0 }
+  pl_hdr "Removing exclusions"
+  (( ${#already} == 0 )) && { pl_ok "nothing to remove"; exit 0 }
   for c in $already; do print -r -- "        ${c/#$HOME/~}"; done
   print -r -- ""
   print -r -- "        sudo tmutil removeexclusion -p${(j: :)${(q)already/#/ }}"
   print
-  sc_info "Review, then run the line above. This script does not remove exclusions for you."
+  pl_info "Review, then run the line above. This script does not remove exclusions for you."
   exit 0
 fi
 
-sc_hdr "Time Machine exclusions"
-sc_info "${#already} already applied · ${#missing} absent (will be caught on a later run)"
+pl_hdr "Time Machine exclusions"
+pl_info "${#already} already applied · ${#missing} absent (will be caught on a later run)"
 
 if (( ${#present} == 0 )); then
-  sc_ok "every existing candidate is already excluded"
+  pl_ok "every existing candidate is already excluded"
   exit 0
 fi
 
 print -r -- ""
 local total=0 fc n=0
 for c in $present; do
-  n=$(sc_file_count $c); (( total += $(sc_size_of $c) ))
-  printf '  %10s  %9s files  %s\n' "$(sc_size_h $c)" "$n" "${c/#$HOME/~}"
+  n=$(pl_file_count $c); (( total += $(pl_size_of $c) ))
+  printf '  %10s  %9s files  %s\n' "$(pl_size_h $c)" "$n" "${c/#$HOME/~}"
 done
 print -r -- ""
 
@@ -86,23 +86,23 @@ local cmdline=""
 for c in $present; do cmdline+=" ${(q)c}" ; done
 
 if [[ $mode == apply ]]; then
-  sc_info "applying ${#present} exclusion(s) — sudo will prompt…"
+  pl_info "applying ${#present} exclusion(s) — sudo will prompt…"
   if sudo tmutil addexclusion -p ${present}; then
     print
     local failed=0
-    for c in $present; do sc_tm_excluded $c || { sc_crit "FAILED: ${c/#$HOME/~}"; (( failed++ )) } ; done
-    (( failed == 0 )) && sc_ok "all ${#present} applied and verified"
-    sc_log "tm-exclude applied=${#present} failed=${failed}"
+    for c in $present; do pl_tm_excluded $c || { pl_crit "FAILED: ${c/#$HOME/~}"; (( failed++ )) } ; done
+    (( failed == 0 )) && pl_ok "all ${#present} applied and verified"
+    pl_log "tm-exclude applied=${#present} failed=${failed}"
     exit $(( failed > 0 ))
   else
-    sc_crit "tmutil failed — does this terminal have Full Disk Access?"
+    pl_crit "tmutil failed — does this terminal have Full Disk Access?"
     exit 1
   fi
 fi
 
-sc_warn "$(sc_human $total) across ${#present} path(s) would be excluded. Dry run — nothing changed."
-sc_info "Apply with:  ${0:t} --apply"
-sc_info "Or by hand:"
+pl_warn "$(pl_human $total) across ${#present} path(s) would be excluded. Dry run — nothing changed."
+pl_info "Apply with:  ${0:t} --apply"
+pl_info "Or by hand:"
 print -r -- ""
 print -r -- "        sudo tmutil addexclusion -p${cmdline}"
 print

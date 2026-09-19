@@ -82,7 +82,7 @@ side by side.
    referenced it. → `reclaim.zsh` pauses TM and thins at the end.
 
 2. **Pausing Time Machine must be self-restoring.** It was left off for ~30
-   minutes because a manual `tmutil disable` had no counterpart. → `sc_tm_pause`
+   minutes because a manual `tmutil disable` had no counterpart. → `pl_tm_pause`
    installs a `trap … EXIT INT TERM`.
 
 3. **`err_return` is wrong for diagnostics.** The first `disk-report.zsh` aborted
@@ -115,7 +115,7 @@ side by side.
    and start a 350 GB full re-seed — the correct outcome, but note the chain was
    already unusable before we touched it.
 
-   → `sc_tm_days_since_backup` now checks the age of the last *completed* backup
+   → `pl_tm_days_since_backup` now checks the age of the last *completed* backup
    in both the report and the guard, reading the world-readable TM plist so it
    works unprivileged under launchd.
 
@@ -131,7 +131,7 @@ side by side.
    pays for. `Docker.raw` alone is a 22 GB sparse image rewritten on every
    container run.
 
-   → `SC_TM_EXCLUDE_CANDIDATES` + `sc_tm_excluded` now flag this in the report,
+   → `PL_TM_EXCLUDE_CANDIDATES` + `pl_tm_excluded` now flag this in the report,
    emitting a ready-to-paste `tmutil addexclusion -p` command. Report-only by
    design; it is a one-time fix, not something to notify about hourly.
 
@@ -233,7 +233,7 @@ side by side.
     The mechanism is identical, one level up. `SnapshotDates` records
     completions, so a chain attempting hourly and failing every time does not
     age — it freezes at the last success. For a full day the number is
-    indistinguishable from healthy, and by the time it crosses `SC_TM_WARN_D`
+    indistinguishable from healthy, and by the time it crosses `PL_TM_WARN_D`
     the destination is already two days behind.
 
     Age is a *lagging proxy* for "backups are working". The direct signal was in
@@ -245,9 +245,9 @@ side by side.
     transition. Seventy minutes awake fixed it. Nothing was ever damaged — Time
     Machine aborts the attempt and retries, which is exactly why it stayed quiet.
 
-    → `sc_tm_last_result` and a `Last attempt` check, separate from `Backup` so a
+    → `pl_tm_last_result` and a `Last attempt` check, separate from `Backup` so a
     healthy age cannot mask a failing outcome. WARN on the first failing
-    observation, CRIT after `SC_TM_FAIL_CRIT_H` (12 hours). It reads `RESULT`
+    observation, CRIT after `PL_TM_FAIL_CRIT_H` (12 hours). It reads `RESULT`
     through the same unprivileged `defaults read` the date comes from: the plist
     is not world-readable and `tmutil latestbackup` needs Full Disk Access that a
     LaunchAgent will never have.
@@ -258,9 +258,9 @@ side by side.
     thing that moves only when the system works, and reading its stillness as
     health.
 
-15. **Helpers that exist but are never consulted.** `sc_tm_running` had been in
+15. **Helpers that exist but are never consulted.** `pl_tm_running` had been in
     `common.zsh` since the health model landed, used in exactly one place: a
-    status line in the report. Neither `sparkling-clean thin` nor `reclaim
+    status line in the report. Neither `plimsoll thin` nor `reclaim
     --apply` ever asked, and both are destructive to a backup in flight — `thin`
     runs `tmutil` at urgency 4 against snapshots the running backup is reading
     from, and `reclaim` pauses TM with `tmutil disable`, which stops it outright.
@@ -269,9 +269,9 @@ side by side.
     run in progress — the expensive outcome precisely when a chain has been
     failing and one attempt has finally started to land.
 
-    → Both refuse while a backup is running; `SC_ALLOW_DURING_BACKUP=1`
+    → Both refuse while a backup is running; `PL_ALLOW_DURING_BACKUP=1`
     overrides. Found while fixing it: the progress percentage both would print
     was parsed with `[0-9.]+`, which truncates `2.466504299824327e-06` — a real
     value ten seconds into a backup — at the exponent, rendering 0.0002% as
-    **246.7%**. One shared `sc_tm_progress_pct` now, instead of two copies of the
+    **246.7%**. One shared `pl_tm_progress_pct` now, instead of two copies of the
     broken expression.

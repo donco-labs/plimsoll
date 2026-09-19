@@ -367,6 +367,18 @@ $ du -h Docker.raw
 <aside class="take"><strong>Takeaway.</strong> "Enabled" and "working" are different questions. Check the age of the last <em>completed</em> backup: ``<code> defaults read /Library/Preferences/com.apple.TimeMachine \   | sed -n '/SnapshotDates/,/);/p' | tail -3 </code>`<code> Read </code>SnapshotDates<code> (completions), not </code>AttemptDates` — the latter doesn't record every attempt, and I initially misread its gap as a two-month-longer outage than had actually occurred.</aside>
 <p>&gt;</p>
 <aside class="take">Note this reads the preference file directly. <code>tmutil latestbackup</code> needs Full Disk Access, which a scheduled agent won't have.</aside>
+<h2>Two months later, my own check told me everything was fine</h2>
+<p>I want to spoil my own ending, because the second time is more instructive than the first.</p>
+<p>I wrote that check. I put it in a launchd agent that runs every two hours. And on a later evening it told me, calmly and repeatedly:</p>
+<pre class="term"><code>OK    Backup     1d ago</code></pre>
+<p>It said that for thirty-three hours, across nineteen consecutive failed backups.</p>
+<p>Same mechanism as before, one level up. <code>SnapshotDates</code> records the backups that <em>finish</em>. A chain that tries every hour and fails every hour doesn't make that number older — it makes it <strong>stop</strong>. And a number that has stopped is indistinguishable, for a full day, from a number that is fine. By the time it drifts past a two-day threshold, the destination is already two days behind.</p>
+<p>The real signal was four lines away in the same file I was already reading:</p>
+<pre class="term"><code>RESULT = 26</code></pre>
+<p>Zero means the last attempt succeeded. Twenty-six is <code>BACKUP_FAILED_DISCONNECTED_NETWORK</code>. It had been sitting there the whole time.</p>
+<aside class="take"><strong>Takeaway.</strong> Age is a <em>lagging proxy</em> for "backups are working." Check the outcome of the most recent attempt too — same file, no extra privileges: ``<code> defaults read /Library/Preferences/com.apple.TimeMachine | grep RESULT log show --last 24h --predicate 'subsystem == "com.apple.TimeMachine"' \   | grep BACKUP_FAILED </code>``</aside>
+<p>The cause turned out to be dull, which is the point. A laptop backing up to a NAS over Wi-Fi, closing its lid every few minutes, dropping the SMB session mid-copy every time. Fifty-eight of sixty reconnects landed within five seconds of a sleep transition. <code>backupd</code> does hold an anti-sleep assertion — but the kind that only blocks <em>idle</em> sleep. Closing the lid ignores it entirely.</p>
+<p>Nothing was damaged. Time Machine aborts the attempt and retries cleanly, which is precisely why it never said a word. Seventy minutes with the lid open and it completed.</p>
 <h2>The re-seed, and what it exposed</h2>
 <figure class="plate"><div class="fig">
   <p class="cap">Figure 3 · Why backups cost what they cost</p>
@@ -430,7 +442,7 @@ $ du -h Docker.raw
 <aside class="take"><strong>Takeaway.</strong> Filter exclusion candidates by <strong>file count</strong>, not size. A 300 MB directory with 200,000 tiny files costs far more than 6 GB of model weights. And exclude subpaths deliberately — <code>~/.cargo/registry</code>, not <code>~/.cargo</code>, which holds credentials; <code>~/.m2/repository</code>, not <code>~/.m2</code>.</aside>
 <h2>What I built, and what it taught me about monitoring</h2>
 <p>Every signal was present for days beforehand. Jetsam events, macOS's own excessive-disk-write reports, free space falling. Nothing was watching.</p>
-<p>So I wrote one. <code>sparkling-clean</code> is about a thousand lines of zsh with no runtime dependencies — a read-only diagnostic, a tiered reclaimer that is dry-run by default, and a launchd agent that checks every two hours and stays silent unless something changes.</p>
+<p>So I wrote one. <code>plimsoll</code> is about a thousand lines of zsh with no runtime dependencies — a read-only diagnostic, a tiered reclaimer that is dry-run by default, and a launchd agent that checks every two hours and stays silent unless something changes.</p>
 <p>The diagnostic ends with the answer rather than making you assemble it:</p>
 <pre class="term"><code>== Verdict ==
   OK    Disk       22% free
@@ -453,7 +465,8 @@ OK    healthy</code></pre>
 <p><strong>Mistake one: history escalating current state.</strong> I treated jetsam reports as an alerting signal. After the disk was fixed, the guard kept reporting WARN for three days over kills that had already stopped — precisely when a monitor most needs to go quiet. Now there are two tiers: <em>checks</em> are current conditions and escalate; <em>notes</em> are historical context and never do.</p>
 <p><strong>Mistake two: naming the wrong subsystem.</strong> Every notification title was hardcoded <code>"Disk ${level}"</code> and the message body was built entirely from the disk branch. So the stale-backup alert announced itself as <strong>"Disk CRIT: 22% free"</strong> on a machine with 121 GB free — naming the wrong problem and contradicting its own threshold in the same sentence. Now each check owns its verdict and its wording, and the alert names the subsystem that's actually unhealthy.</p>
 <p><strong>Mistake three: a check that could only ever answer "fine."</strong> Not all <code>JetsamEvent</code>s mean the same thing — <code>per-process-limit</code> is routine, <code>vm-pageshortage</code> is real memory exhaustion — so the guard learned to read the reason. My first classifier used <code>sudo -n grep</code>, which fails whenever a password is required. It would have reported "no memory events" forever, and nothing would have distinguished that from the truth.</p>
-<aside class="take"><strong>Takeaway.</strong> A check that reads <em>healthy</em> when it cannot tell is worse than no check. Report UNKNOWN. This bit me three separate times in one night, in three different scripts.</aside>
+<p><strong>Mistake four: I built the check out of the artifact of success.</strong> This one took two months to surface, and it is the one I'd most want back. Backup <em>age</em> comes from the list of completed backups — so it only moves when the system is working. I had built a check that, by construction, could only ever report success, and then read its stillness as health. The fix was to add a second row reading the outcome of the last attempt, and to keep the two verdicts <em>separate</em>: "0 days old <strong>and</strong> failing" is the normal shape of that fault, and folding them into one number lets the healthy half hide the broken half.</p>
+<aside class="take"><strong>Takeaway.</strong> A check that reads <em>healthy</em> when it cannot tell is worse than no check. Report UNKNOWN. This bit me three separate times in one night, in three different scripts — and a fourth time, two months later, in the check I wrote to fix the problem this article is about.</aside>
 <h2>Who this actually affects</h2>
 <figure class="plate"><div class="fig">
   <p class="cap">Figure 5 · Twenty-four hours later</p>
@@ -472,43 +485,47 @@ OK    healthy</code></pre>
 <p>This bites when three conditions coincide: <strong>a nearly-full disk, a slow backup destination, and a heavy polyglot toolchain.</strong> Miss any one and you never see it.</p>
 <ul><li>With 500 GB free, the swap valve never fails and none of this happens.</li><li>With a fast local SSD as your destination, the file-count cost is still there — it's just ninety seconds instead of ten hours, so you never notice.</li><li>Most developers never back up a dev machine at all beyond git and cloud sync, and quietly accept that a rebuild costs a day.</li></ul>
 <p>I'd been running all three conditions for months without knowing. The disk crept up, the backups died, and macOS never mentioned either.</p>
+<p>But the second outage had <strong>none</strong> of them. Nineteen percent free, a healthy SSD, −59 dBm Wi-Fi with zero packet loss — and no completed backup for thirty-four hours. The laptop simply never stayed awake long enough in one stretch to finish one.</p>
+<p>So the narrower claim is about disk pressure, and the wider one is this: a backup can be switched on, attempting on schedule, damaging nothing, and still not have worked in weeks. Disk pressure is one way to get there. A closed lid is another. What they share is that macOS reports the same thing in both cases, which is nothing at all.</p>
 <h3>If it is memory, disk cleanup will not save you</h3>
 <p>Worth saying plainly, because everything above is about reclaiming space and that is only half an answer.</p>
 <p>Freeing 85 GB gave the system headroom. It did not add RAM. On a 24 GB machine running an editor, a browser, a container runtime and a language server or three, the working set can simply exceed what you have — and then the compressor grinds, pageins climb, and no amount of <code>brew cleanup</code> touches it. The honest remedies for that are unglamorous: run fewer things at once, quit the container runtime when you are not using it, kill the second language server, or buy more RAM on the next machine.</p>
 <p>Two numbers tell you which problem you have. If <strong>pageins climb while pageouts stay near zero</strong> and the compressor is large, that is a working set too big for the machine. If free space is low and snapshots are stacking up, that is the one this article can fix.</p>
 <pre class="term"><code>vm_stat | grep -E &quot;Pageins|Pageouts&quot;</code></pre>
 <p>Mine was both. Only one of them was fixable in a night.</p>
-<h2>Four checks worth running right now</h2>
+<h2>Five checks worth running right now</h2>
 <p>They take under a minute.</p>
 <pre class="term"><code># 1. Real free space (not what df or Finder tell you)
 diskutil info /System/Volumes/Data | grep &quot;Container Free&quot;</code></pre>
 <pre class="term"><code># 2. When did a backup last actually COMPLETE?
 defaults read /Library/Preferences/com.apple.TimeMachine \
   | sed -n &#x27;/SnapshotDates/,/);/p&#x27; | tail -3</code></pre>
-<pre class="term"><code># 3. Are snapshots holding space you think you freed?
+<pre class="term"><code># 3. Did the LAST attempt succeed? 0 = yes, anything else is the failure code
+defaults read /Library/Preferences/com.apple.TimeMachine | grep RESULT</code></pre>
+<pre class="term"><code># 4. Are snapshots holding space you think you freed?
 tmutil listlocalsnapshots /</code></pre>
-<pre class="term"><code># 4. Is a cache in every one of your backups?
+<pre class="term"><code># 5. Is a cache in every one of your backups?
 tmutil isexcluded ~/.cache</code></pre>
 <p><code>[Included]</code> means yes, it is — along with however many hundreds of thousands of files it holds. Exclude it with <code>sudo tmutil addexclusion -p ~/.cache</code>.</p>
 <p>One caution before you get enthusiastic with that command. Exclude <strong>caches and registries</strong>, not the directories that hold them: <code>~/.cargo/registry</code>, not <code>~/.cargo</code>, which also holds your credentials file; <code>~/.m2/repository</code>, not <code>~/.m2</code>, which holds <code>settings.xml</code>. And think twice about toolchain roots like <code>~/.rustup</code> or <code>~/.sdkman</code> — reconstructible in principle, but only if you have network and an afternoon. An exclusion is not a deletion, but it does mean that directory will not be there when you restore.</p>
-<p>If #2 surprises you, this article did its job.</p>
+<p>If #2 or #3 surprises you, this article did its job. #2 is the one people expect to be fine and is not. #3 is the one that stays wrong while #2 still looks right.</p>
 <hr>
 <h2>Getting it</h2>
 <pre class="term"><code>brew tap donco-labs/tap
-brew trust --formula donco-labs/tap/sparkling-clean
-brew install sparkling-clean</code></pre>
+brew trust --formula donco-labs/tap/plimsoll
+brew install plimsoll</code></pre>
 <p>(Homebrew 6 refuses formulae from third-party taps until you trust them. The formula is thirty lines and copies scripts into <code>libexec</code>; read it first, which is the point of the gate.)</p>
 <p>Then:</p>
-<pre class="term"><code>sparkling-clean report          # the diagnostic above
-sparkling-clean install-guard   # the watchdog, every 2h
-sparkling-clean reclaim         # dry-run; --apply to actually reclaim</code></pre>
+<pre class="term"><code>plimsoll report          # the diagnostic above
+plimsoll install-guard   # the watchdog, every 2h
+plimsoll reclaim         # dry-run; --apply to actually reclaim</code></pre>
 <p>Every destructive path is dry-run until you pass <code>--apply</code>, real data is reported and never deleted, and pausing Time Machine is restored by a trap so an interrupted run cannot leave a machine unbacked-up. It is macOS-only, it has been proven on exactly one machine, and the exclusion list is tuned to my toolchain — treat it as a starting point rather than gospel.</p>
 <p>The repo's <code>docs/</code> directory carries the full postmortem: twelve lessons, each naming which mistake produced which line of code, including the four theories that turned out wrong. If you only read one, read the one about a monitor that reports healthy when it cannot tell.</p>
-<p><strong><a href="https://github.com/donco-labs/sparkling-clean">github.com/donco-labs/sparkling-clean</a></strong></p>
+<p><strong><a href="https://github.com/donco-labs/plimsoll">github.com/donco-labs/plimsoll</a></strong></p>
 </main>
 <footer>
   Draft for review. The toolkit described here is at
-  <a href="https://github.com/donco-labs/sparkling-clean">donco-labs/sparkling-clean</a>;
+  <a href="https://github.com/donco-labs/plimsoll">donco-labs/plimsoll</a>;
   the full postmortem, including the four theories that turned out wrong, is in its
   <code>docs/</code> directory.
 </footer>

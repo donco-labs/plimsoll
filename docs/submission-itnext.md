@@ -62,7 +62,7 @@ address.  All five below are load-bearing in the article:
 
 Both are ITNEXT requirements, not optional courtesies.
 
-1. **Relationship.**  The article names `sparkling-clean`, which is the author's own work.
+1. **Relationship.**  The article names `plimsoll`, which is the author's own work.
    Stated plainly in the closing section rather than implied by the link.
 2. **Published elsewhere.**  A draft of this article is public in the repository at
    `docs/article-draft.md`.  This is not a Medium duplicate-content problem, since that

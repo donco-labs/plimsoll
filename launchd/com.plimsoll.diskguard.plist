@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!--
-  LaunchAgent for sparkling-clean's disk guard.
+  LaunchAgent for plimsoll's disk guard.
 
   Installed to ~/Library/LaunchAgents/ by `make install-guard`, which rewrites
-  __SC_ROOT__ to this repo's absolute path. Do not load this file in place.
+  __PL_ROOT__ to this repo's absolute path. Do not load this file in place.
 
   Why launchd and not cron: launchd runs a missed interval on wake, so a laptop
   that was asleep at the scheduled time still gets checked. cron silently skips.
@@ -13,12 +13,12 @@
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.sparklingclean.diskguard</string>
+    <string>com.plimsoll.diskguard</string>
 
     <key>ProgramArguments</key>
     <array>
         <string>/bin/zsh</string>
-        <string>__SC_ROOT__/bin/disk-guard.zsh</string>
+        <string>__PL_ROOT__/bin/disk-guard.zsh</string>
     </array>
 
     <!-- Every 2 hours. Cheap: a few diskutil/find calls, well under a second. -->
@@ -30,9 +30,9 @@
     <true/>
 
     <key>StandardOutPath</key>
-    <string>__SC_ROOT__/.guard.out.log</string>
+    <string>__PL_ROOT__/.guard.out.log</string>
     <key>StandardErrorPath</key>
-    <string>__SC_ROOT__/.guard.err.log</string>
+    <string>__PL_ROOT__/.guard.err.log</string>
 
     <key>ProcessType</key>
     <string>Background</string>

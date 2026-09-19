@@ -1,7 +1,7 @@
-# sparkling-clean — macOS disk triage toolkit
+# plimsoll — macOS disk triage toolkit
 SHELL      := /bin/zsh
 ROOT       := $(shell pwd)
-LABEL      := com.sparklingclean.diskguard
+LABEL      := com.plimsoll.diskguard
 PLIST_SRC  := launchd/$(LABEL).plist
 PLIST_DST  := $(HOME)/Library/LaunchAgents/$(LABEL).plist
 
@@ -47,12 +47,13 @@ tm-exclude-apply: ## Apply the codified TM exclusion list (needs Full Disk Acces
 	@./bin/tm-exclude.zsh --apply
 
 install-guard: ## Install + load the launchd guard (checks every 2h)
+	@zsh -c 'source $(ROOT)/bin/lib/common.zsh && pl_migrate_legacy'
 	@mkdir -p $(HOME)/Library/LaunchAgents
-	@sed 's|__SC_ROOT__|$(ROOT)|g' $(PLIST_SRC) > $(PLIST_DST)
+	@sed 's|__PL_ROOT__|$(ROOT)|g' $(PLIST_SRC) > $(PLIST_DST)
 	@launchctl unload $(PLIST_DST) 2>/dev/null || true
 	@launchctl load  $(PLIST_DST)
 	@echo "loaded $(LABEL) — checks every 2h, notifies on WARN/CRIT"
-	@echo "log: ~/.local/state/sparkling-clean/sparkling-clean.log"
+	@echo "log: ~/.local/state/plimsoll/plimsoll.log"
 
 uninstall-guard: ## Unload + remove the launchd guard
 	@launchctl unload $(PLIST_DST) 2>/dev/null || true
@@ -63,7 +64,7 @@ guard-status: ## Is the guard loaded?
 	@launchctl list | grep $(LABEL) || echo "not loaded (make install-guard)"
 
 log: ## Tail the guard log
-	@tail -30 $(HOME)/.local/state/sparkling-clean/sparkling-clean.log 2>/dev/null || echo "no log yet"
+	@tail -30 $(HOME)/.local/state/plimsoll/plimsoll.log 2>/dev/null || echo "no log yet"
 
 # ---- menu bar plugin: develop against the checkout, then put it back -------
 # The plugin SwiftBar loads is a symlink, and which copy it points at decides
@@ -71,9 +72,9 @@ log: ## Tail the guard log
 # means retyping a path with a space in it, which is how you end up debugging
 # the wrong file for ten minutes.
 PLUGIN_DIR  := $(HOME)/Library/Application Support/SwiftBarPlugins
-PLUGIN_NAME := sparkling-clean.10m.sh
+PLUGIN_NAME := plimsoll.10m.sh
 PLUGIN_LINK := $(PLUGIN_DIR)/$(PLUGIN_NAME)
-BREW_PLUGIN  = $(shell brew --prefix 2>/dev/null)/opt/sparkling-clean/libexec/extra/swiftbar/$(PLUGIN_NAME)
+BREW_PLUGIN  = $(shell brew --prefix 2>/dev/null)/opt/plimsoll/libexec/extra/swiftbar/$(PLUGIN_NAME)
 
 plugin-dev: ## Point SwiftBar at THIS checkout (live edits)
 	@mkdir -p "$(PLUGIN_DIR)"
@@ -87,7 +88,7 @@ plugin-brew: ## Point SwiftBar back at the Homebrew copy (the release)
 	@mkdir -p "$(PLUGIN_DIR)"
 	@ln -sf "$(BREW_PLUGIN)" "$(PLUGIN_LINK)"
 	@open -g "swiftbar://refreshallplugins" 2>/dev/null || true
-	@echo "menu bar -> homebrew ($$(/opt/homebrew/bin/sparkling-clean version 2>/dev/null || echo installed))"
+	@echo "menu bar -> homebrew ($$(/opt/homebrew/bin/plimsoll version 2>/dev/null || echo installed))"
 
 plugin-status: ## Which copy is the menu bar running?
 	@if [ ! -L "$(PLUGIN_LINK)" ]; then echo "no plugin symlink (make plugin-dev or make plugin-brew)"; \
@@ -95,11 +96,11 @@ plugin-status: ## Which copy is the menu bar running?
 	else echo "homebrew   $$(readlink "$(PLUGIN_LINK)")"; fi
 
 plugin-refresh: ## Redraw the menu bar now, without waiting for the 10m tick
-	@open -g "swiftbar://refreshplugin?name=sparkling-clean" 2>/dev/null || true
+	@open -g "swiftbar://refreshplugin?name=plimsoll" 2>/dev/null || true
 
 lint: ## Syntax-check every script
 	@for f in bin/*.zsh bin/lib/*.zsh; do zsh -n $$f && echo "  ok  $$f"; done
 	@plutil -lint $(PLIST_SRC)
-	@zsh -c 'source bin/lib/common.zsh; sc_watch_target_lint'
+	@zsh -c 'source bin/lib/common.zsh; pl_watch_target_lint'
 
 .PHONY: help report brief check dry clean-safe clean-more review docker docker-clean tm-status tm-exclude tm-exclude-apply install-guard uninstall-guard guard-status log lint plugin-dev plugin-brew plugin-status plugin-refresh
