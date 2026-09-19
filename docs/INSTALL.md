@@ -133,6 +133,23 @@ Point SwiftBar at that dedicated `SwiftBarPlugins` folder on first launch. Do
 not use `~/Library/Application Support/SwiftBar`; that is SwiftBar's own state
 directory.
 
+Use SwiftBar 2.1.2 beta 3 rather than the stable cask version. It fixes the
+submenu refresh bug and restores the `swiftbar://refreshplugin` URL used by
+`plimsoll thin`:
+
+```bash
+curl -fsSLO https://github.com/swiftbar/SwiftBar/releases/download/v2.1.2-beta-3/SwiftBar.v2.1.2.b607.zip
+unzip -q SwiftBar.v2.1.2.b607.zip
+osascript -e 'quit app "SwiftBar"' ; sleep 3
+rm -rf /Applications/SwiftBar.app && ditto SwiftBar.app /Applications/SwiftBar.app
+open -a SwiftBar
+```
+
+The beta is notarized and signed by the same team as the stable build. A later
+Homebrew cask upgrade will restore the stable build; reinstall the cask to roll
+back deliberately. See the README's menu-bar section for the known-version
+details and rollback notes.
+
 ## Useful first checks
 
 ```bash
