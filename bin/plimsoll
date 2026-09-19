@@ -29,6 +29,7 @@ usage() {
   print -r -- "  report        full read-only diagnostic, ending in a verdict"
   print -r -- "  check         run the health guard once (exit 0 ok / 1 warn / 2 crit)"
   print -r -- "  reclaim       tiered disk reclamation          (dry-run by default)"
+  print -r -- "                --tier 2 includes tiers 1+2; add --apply to reclaim"
   print -r -- "  docker        Docker space, never touches volumes (dry-run by default)"
   print -r -- "  tm-exclude    apply the Time Machine exclusion policy (dry-run by default)"
   print -r -- "  thin          release space held by local Time Machine snapshots"
