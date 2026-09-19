@@ -39,6 +39,28 @@ The formula is [Formula/plimsoll.rb](https://github.com/donco-labs/homebrew-tap/
 
 Or clone and use `make` directly — the repo works without installing.
 
+### Upgrading from sparkling-clean
+
+This toolkit was called `sparkling-clean` through v0.7.1. Trust is recorded
+against the formula *name*, so the old trust does not carry over and
+`brew upgrade` stops with `Refusing to load formula donco-labs/tap/plimsoll
+from untrusted tap`:
+
+```bash
+brew update
+brew trust --formula donco-labs/tap/plimsoll
+brew upgrade
+plimsoll install-guard
+```
+
+The tap's `formula_renames.json` migrates the install rather than stranding it
+on a formula that no longer exists. That last line is what moves this toolkit's
+own artifacts: it unloads and removes the old launchd agent *before* loading the
+new one — two guards on a machine notify twice and split their de-dup state —
+then moves `~/.local/state/sparkling-clean` to `~/.local/state/plimsoll` with
+the health history the trend sparkline is drawn from, and repoints the SwiftBar
+symlink. `SC_*` overrides are now `PL_*`; any still set are named, not migrated.
+
 ## Quick start
 
 ```bash
