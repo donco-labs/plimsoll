@@ -180,6 +180,30 @@ jobs:
             done
           '
 
+      - name: A failing attempt names a next step
+        # A cause with no remedy is a dead end: "backup disk locked" used to be
+        # the whole message, and the guard filled the gap with reclaim advice
+        # that frees space and does nothing for a lock. Unknown codes must get
+        # the lookup command rather than a guessed fix.
+        run: |
+          zsh -c '
+            source bin/lib/common.zsh
+            export PL_TM_STATE=$(mktemp -d)/tm.state
+            pl_tm_enabled()               { return 0 }
+            pl_tm_last_backup_epoch()     { print -r -- 1757370669 }
+            pl_tm_destination_reachable() { return 0 }
+            detail_for() {
+              pl_tm_last_result() { print -r -- $code }
+              pl_run_health_checks
+              for c in $PL_CHECKS; do
+                [[ $(pl_check_name $c) == "Last attempt" ]] && pl_check_detail $c
+              done
+            }
+            code=31; [[ $(detail_for) == *"restart the NAS"* ]] || { print "FAIL: code 31 has no remedy"; exit 1 }
+            code=99; [[ $(detail_for) == *"log show"* ]]        || { print "FAIL: unknown code has no lookup"; exit 1 }
+            print "remedies present"
+          '
+
       - name: A landed backup clears the failure clock
         # Keyed on the last-success date so a chain that recovers does not carry
         # its old clock into an unrelated later failure and jump straight to CRIT.

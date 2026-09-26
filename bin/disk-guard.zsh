@@ -196,7 +196,13 @@ if (( should_notify && ! quiet )); then
     # Escape double quotes for the AppleScript string literal.
     osascript -e "display notification \"${msg//\"/\\\"}\" with title \"${title//\"/\\\"}\"" 2>/dev/null
   fi
-  [[ $level == CRIT ]] && pl_info "run: $(dirname ${0:A})/reclaim.zsh --tier 2 --apply"
+  # Only for a disk that is actually critical. Keyed on the overall level, this
+  # told a machine with a locked backup disk and plenty of space to go and
+  # delete caches; every other check carries its own next step in its detail.
+  for c in $PL_CHECKS; do
+    [[ $(pl_check_name $c) == Disk && $(pl_check_level $c) == CRIT ]] || continue
+    pl_info "run: $(dirname ${0:A})/reclaim.zsh --tier 2 --apply"
+  done
 fi
 
 exit $rc
