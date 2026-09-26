@@ -118,4 +118,5 @@ else
   pl_info "Resources → Disk image size (WARNING: recreates the image and destroys"
   pl_info "every container, image and volume inside it)."
 fi
+(( PL_APPLY )) && pl_sizes_refresh_after_reclaim
 print
