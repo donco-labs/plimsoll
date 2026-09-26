@@ -139,13 +139,19 @@ pl_menu_wrapped() {   # $1 = text · $2 = leading indent · $3 = params · $4 = 
 
 # One line per check, colour-coded, worst first is not needed — order is stable
 # and matches the report.
+#
+# The guard escapes a " inside a detail as \", so the detail pattern has to step
+# over escapes. With a bare [^"]* it stopped at the first one, the row no longer
+# ended in "} and it matched nothing -- the whole row vanished from the menu, no
+# error. Any detail quoting a command did it, starting with the lookup advice for
+# a failure code that has no name.
 print -r -- "$json" \
-  | grep -oE '\{"level":"[A-Z]+","name":"[^"]+","headline":"[^"]+","detail":"[^"]*"\}' \
+  | grep -oE '\{"level":"[A-Z]+","name":"[^"]+","headline":"[^"]+","detail":"([^"\\]|\\.)*"\}' \
   | while read -r row; do
       local l=$(print -r -- "$row" | sed -E 's/.*"level":"([^"]*)".*/\1/')
       local n=$(print -r -- "$row" | sed -E 's/.*"name":"([^"]*)".*/\1/')
       local h=$(print -r -- "$row" | sed -E 's/.*"headline":"([^"]*)".*/\1/')
-      local d=$(print -r -- "$row" | sed -E 's/.*"detail":"([^"]*)".*/\1/')
+      local d=$(print -r -- "$row" | sed -E 's/.*"detail":"(.*)"\}$/\1/; s/\\"/"/g')
       # The full sentence rides along as a tooltip. It costs no row and no
       # width, and it is the only way an OK row's detail is reachable at all --
       # visible detail rows are printed for problems only, so on a healthy
