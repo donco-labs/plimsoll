@@ -544,11 +544,21 @@ pl_tm_result_cause() {
 #
 # Same rule as the causes: a remedy only for a code this toolkit has seen fixed.
 # Everything else gets the command that finds the real error, not a guess.
+#
+# 26 and 70 name two causes, because both have been seen and they look the same
+# from here: a laptop sleeping mid-copy, and a Mac mini whose loose Ethernet
+# cable flipped it between Ethernet and Wi-Fi with the lid question moot. Naming
+# only sleep sent the second one looking in the wrong place. Detecting which it
+# was is not affordable -- `pmset -g log` alone costs 3s -- so say where to look.
+#
+# Commands use /usr/bin/log, never bare `log`: in zsh, the macOS default shell,
+# `log` is a builtin that lists logins, so the pasted command prints nothing and
+# reads as "no errors found".
 pl_tm_result_remedy() {
   case ${1:-} in
-    (26|70) print -r -- "Keep the Mac awake and on the destination's network until one completes; sleep drops the connection mid-copy." ;;
+    (26|70) print -r -- "Usually the Mac sleeping or its network changing, such as a loose Ethernet cable flipping it to Wi-Fi. Keep one stable connection until a backup completes. To tell which: pmset -g log | grep 'Entering Sleep', and /usr/bin/log show --last 2h --predicate 'eventMessage CONTAINS \"network changed\"'" ;;
     (31)    print -r -- "The destination is likely holding a stale lock on the backup image: run tmutil stopbackup, restart the NAS or reconnect the disk, then tmutil startbackup --auto." ;;
-    (*)     print -r -- "Find the cause with: log show --last 24h --predicate 'subsystem == \"com.apple.TimeMachine\"' | grep BACKUP_FAILED" ;;
+    (*)     print -r -- "Find the cause with: /usr/bin/log show --last 24h --predicate 'subsystem == \"com.apple.TimeMachine\"' | grep BACKUP_FAILED" ;;
   esac
 }
 

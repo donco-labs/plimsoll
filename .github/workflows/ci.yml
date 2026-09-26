@@ -200,7 +200,15 @@ jobs:
               done
             }
             code=31; [[ $(detail_for) == *"restart the NAS"* ]] || { print "FAIL: code 31 has no remedy"; exit 1 }
-            code=99; [[ $(detail_for) == *"log show"* ]]        || { print "FAIL: unknown code has no lookup"; exit 1 }
+            code=99; [[ $(detail_for) == *"/usr/bin/log show"* ]] || { print "FAIL: unknown code has no lookup"; exit 1 }
+            # Both causes seen for a dropped connection, not just sleep.
+            code=26; [[ $(detail_for) == *Sleep*network* ]]      || { print "FAIL: code 26 names one cause"; exit 1 }
+            # Bare `log` is a zsh builtin: pasted into the default shell it
+            # prints nothing, which reads as "no errors".
+            for code in 26 31 70 99; do
+              d=$(detail_for)
+              [[ ${d//\/usr\/bin\/log show/} != *"log show"* ]] || { print "FAIL: code $code suggests bare log"; exit 1 }
+            done
             print "remedies present"
           '
 
@@ -291,6 +299,25 @@ jobs:
           out=$(./bin/tm-exclude.zsh 2>&1)
           echo "$out" | grep -qi "dry run\|already excluded" || { echo "tm-exclude not dry-run"; exit 1; }
           echo "dry-run defaults hold"
+
+      - name: A detail containing quotes keeps its menu bar row
+        # The guard escapes " as \" in JSON, and the plugin matched details with
+        # [^"]*, which stopped at the escape: the row matched nothing and
+        # vanished. That hid the Last attempt row for every unnamed failure
+        # code, because their advice quotes a log predicate.
+        run: |
+          set -e
+          t=$(mktemp -d)
+          cp -R bin extra launchd "$t/"
+          # The detail escapes its quotes exactly as disk-guard --json does.
+          cat > "$t/bin/disk-guard.zsh" <<'EOF'
+          print -r -- '{"level":"WARN","exit":1,"subject":"Last attempt","headline":"failed — backupd error 18","checks":[{"level":"OK","name":"Disk","headline":"40% free","detail":"fine"},{"level":"WARN","name":"Last attempt","headline":"failed — backupd error 18","detail":"Find the cause with: /usr/bin/log show --predicate \"subsystem == x\" | grep BACKUP_FAILED"}],"notes":[]}'
+          EOF
+          out=$(zsh "$t/extra/swiftbar/plimsoll.10m.sh")
+          echo "$out" | grep -q "Last attempt: failed" || { echo "FAIL: a detail with quotes dropped its row"; echo "$out"; exit 1; }
+          echo "$out" | grep "Last attempt" | grep -q 'tooltip="Find the cause' || { echo "FAIL: tooltip missing"; echo "$out"; exit 1; }
+          rm -rf "$t"
+          echo "quoted detail keeps its row"
 
       - name: SwiftBar plugin renders
         run: |
