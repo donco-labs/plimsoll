@@ -204,6 +204,30 @@ jobs:
             print "remedies present"
           '
 
+      - name: The guard survives brew upgrade, and a dead one is reported
+        # install-guard used to write the versioned Cellar path into the plist.
+        # The next upgrade deleted it, launchd exited 127 every run, and the
+        # guard stayed "loaded" while checking nothing for a week.
+        run: |
+          set -e
+          fake=$(mktemp -d)
+          mkdir -p $fake/Cellar/plimsoll/9.9.9/libexec $fake/opt
+          ln -s ../Cellar/plimsoll/9.9.9 $fake/opt/plimsoll
+          got=$(zsh -c "source bin/lib/common.zsh; pl_guard_root $fake/Cellar/plimsoll/9.9.9/libexec")
+          [[ $got == $fake/opt/plimsoll/libexec ]] || { echo "FAIL: baked $got"; exit 1; }
+          got=$(zsh -c "source bin/lib/common.zsh; pl_guard_root $PWD")
+          [[ $got == $PWD ]] || { echo "FAIL: checkout path rewritten to $got"; exit 1; }
+
+          mkdir -p $fake/Library/LaunchAgents
+          sed "s|__PL_ROOT__|$fake/Cellar/plimsoll/0.0.1/libexec|g" launchd/com.plimsoll.diskguard.plist \
+            > $fake/Library/LaunchAgents/com.plimsoll.diskguard.plist
+          set +e
+          out=$(HOME=$fake ./bin/plimsoll guard-status 2>&1); rc=$?
+          set -e
+          [[ $rc -eq 1 && $out == *dead:* ]] || { echo "FAIL: dead guard not reported ($rc): $out"; exit 1; }
+          rm -rf $fake
+          echo "stable path baked; dead guard reported"
+
       - name: A landed backup clears the failure clock
         # Keyed on the last-success date so a chain that recovers does not carry
         # its old clock into an unrelated later failure and jump straight to CRIT.

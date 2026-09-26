@@ -234,6 +234,30 @@ pl_version() {
   print -r -- dev
 }
 
+# ---- where the LaunchAgent points --------------------------------------------
+# The dispatcher resolves itself through the bin symlink, which lands in a
+# versioned Cellar directory -- the right answer for pl_version and the wrong one
+# to bake into a LaunchAgent. `brew upgrade` deletes that directory, launchd
+# exits 127 on every run, and a watchdog that has stopped watching says nothing.
+# That is how a week of failed backups went unreported on the host that found it.
+#
+# Homebrew's opt/ symlink follows upgrades, so write that instead. Only when it
+# exists: a checkout, or a Cellar path with no opt/ beside it, is kept as is.
+pl_guard_root() {  # $1 = resolved install root -> the root to write into the plist
+  local root=$1 stable
+  stable=$(print -r -- "$root" | sed -E 's|/Cellar/plimsoll/[^/]+/|/opt/plimsoll/|')
+  [[ $stable != $root && -d $stable ]] && root=$stable
+  print -r -- $root
+}
+
+PL_GUARD_PLIST=$HOME/Library/LaunchAgents/com.plimsoll.diskguard.plist
+
+# The script the installed LaunchAgent runs. Fails when there is no plist.
+pl_guard_target() {
+  [[ -r $PL_GUARD_PLIST ]] || return 1
+  plutil -extract ProgramArguments.1 raw -o - $PL_GUARD_PLIST 2>/dev/null
+}
+
 pl_tm_last_backup_human() {
   local e
   e=$(pl_tm_last_backup_epoch) || { print -r -- "unknown"; return 1 }

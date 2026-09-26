@@ -132,10 +132,11 @@ case $cmd in
     open -g "swiftbar://refreshplugin?name=plimsoll" 2>/dev/null
     ;;
   install-guard)
-    local plist=$HOME/Library/LaunchAgents/com.plimsoll.diskguard.plist
+    source $here/lib/common.zsh || exit 1
+    local plist=$PL_GUARD_PLIST
     # Before anything loads: clear a sparkling-clean install if one is still
     # here. Two guards on one machine notify twice and split their de-dup state.
-    source $here/lib/common.zsh 2>/dev/null && pl_migrate_legacy
+    pl_migrate_legacy
     mkdir -p ${plist:h}
     # Checkout layout puts launchd/ beside bin/; Homebrew installs it inside
     # libexec alongside the scripts. Look in both.
@@ -145,7 +146,7 @@ case $cmd in
       [[ -r $tmpl ]] && break
     done
     [[ -r $tmpl ]] || { print -ru2 -- "plist template not found"; exit 1 }
-    sed "s|__PL_ROOT__|${here:h}|g" $tmpl > $plist
+    sed "s|__PL_ROOT__|$(pl_guard_root ${here:h})|g" $tmpl > $plist
     launchctl unload $plist 2>/dev/null
     launchctl load  $plist && print -r -- "loaded — checks every 2h, notifies on WARN/CRIT" ;;
   uninstall-guard)
@@ -153,7 +154,15 @@ case $cmd in
     launchctl unload $plist 2>/dev/null
     rm -f $plist && print -r -- "removed" ;;
   guard-status)
-    launchctl list | grep com.plimsoll.diskguard || print -r -- "not loaded (plimsoll install-guard)" ;;
+    source $here/lib/common.zsh 2>/dev/null
+    launchctl list | grep com.plimsoll.diskguard || print -r -- "not loaded (plimsoll install-guard)"
+    # Loaded is not running. A plist pointing into a Cellar directory that an
+    # upgrade removed stays loaded and exits 127 every time, silently.
+    local target
+    if target=$(pl_guard_target) && [[ -n $target && ! -r $target ]]; then
+      print -ru2 -- "dead: the guard runs $target, which no longer exists. Fix: plimsoll install-guard"
+      exit 1
+    fi ;;
   *)
     local script=${CMDS[$cmd]:-}
     if [[ -z $script ]]; then

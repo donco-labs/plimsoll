@@ -102,7 +102,14 @@ plimsoll guard-status
 ```
 
 The LaunchAgent checks every two hours and once at login. It notifies only for
-a new or persistent warning or critical condition. Its log is here:
+a new or persistent warning or critical condition.
+
+Installed before 0.8.3? Run `plimsoll install-guard` once after upgrading. Older
+versions pointed the LaunchAgent at a versioned Homebrew directory that the next
+`brew upgrade` deleted, which stopped the guard without any warning.
+`guard-status` now reports that state as `dead` and exits 1.
+
+Its log is here:
 
 ```text
 ~/.local/state/plimsoll/plimsoll.log
