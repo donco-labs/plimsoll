@@ -514,6 +514,20 @@ pl_tm_result_cause() {
   esac
 }
 
+# What to do about it. A cause with no next step is a dead end, and the guard
+# used to fill that silence with its generic CRIT advice -- `reclaim` -- which
+# frees disk space and does nothing for a backup that cannot reach its disk.
+#
+# Same rule as the causes: a remedy only for a code this toolkit has seen fixed.
+# Everything else gets the command that finds the real error, not a guess.
+pl_tm_result_remedy() {
+  case ${1:-} in
+    (26|70) print -r -- "Keep the Mac awake and on the destination's network until one completes; sleep drops the connection mid-copy." ;;
+    (31)    print -r -- "The destination is likely holding a stale lock on the backup image: run tmutil stopbackup, restart the NAS or reconnect the disk, then tmutil startbackup --auto." ;;
+    (*)     print -r -- "Find the cause with: log show --last 24h --predicate 'subsystem == \"com.apple.TimeMachine\"' | grep BACKUP_FAILED" ;;
+  esac
+}
+
 # How long it has been failing. RESULT says the last attempt failed; it cannot
 # say whether that started an hour ago or last week, and that difference is the
 # whole verdict. The unified log holds the history, but `log show` over a
@@ -840,9 +854,10 @@ pl_run_health_checks() {
         pl_tm_failing_clear
         pl_check OK "Last attempt" "ok"
       else
-        local anchor since hours cause reach
+        local anchor since hours cause remedy reach
         anchor=$(pl_tm_last_backup_epoch) || anchor=none
         cause=$(pl_tm_result_cause $res)
+        remedy=$(pl_tm_result_remedy $res)
         pl_tm_destination_reachable; reach=$?
 
         # Being away from the destination is not a fault. A laptop on a
@@ -870,10 +885,10 @@ pl_run_health_checks() {
           hours=$(( ( $(date +%s) - since ) / 3600 ))
           if (( hours >= PL_TM_FAIL_CRIT_H )); then
             pl_check CRIT "Last attempt" "failed — ${cause}" \
-              "Failing ${hours}h — ${cause} (code ${res}). Destination is reachable, so not distance."
+              "Failing ${hours}h — ${cause} (code ${res}). Destination is reachable, so not distance. ${remedy}"
           else
             pl_check WARN "Last attempt" "failed — ${cause}" \
-              "Last attempt failed — ${cause} (code ${res}). The age above only moves on success."
+              "Last attempt failed — ${cause} (code ${res}). The age above only moves on success. ${remedy}"
           fi
         fi
       fi
