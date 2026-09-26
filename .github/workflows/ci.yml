@@ -296,6 +296,7 @@ jobs:
           out=$(./bin/reclaim.zsh 2>&1)
           echo "$out" | grep -q "dry run" || { echo "reclaim did not announce dry-run"; exit 1; }
           echo "$out" | grep -q "  RUN  " && { echo "reclaim EXECUTED without --apply"; exit 1; }
+          echo "$out" | grep -q "re-measuring" && { echo "reclaim dry run started a watchlist walk"; exit 1; }
           out=$(./bin/tm-exclude.zsh 2>&1)
           echo "$out" | grep -qi "dry run\|already excluded" || { echo "tm-exclude not dry-run"; exit 1; }
           echo "dry-run defaults hold"

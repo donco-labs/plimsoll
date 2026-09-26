@@ -83,7 +83,7 @@ if (( tier >= 2 )); then
   pl_rm "Playwright browsers"      ~/Library/Caches/ms-playwright(N) ~/Library/Caches/ms-playwright-go(N)
   pl_rm "Android build cache"      ~/.android/cache(N)
   (( $+commands[xcrun] )) && pl_run "delete unavailable simulators" xcrun simctl delete unavailable
-  pl_info "Docker is handled separately: ./bin/docker-reclaim.zsh"
+  pl_info "Docker is handled separately: plimsoll docker (from a clone: make docker)"
 fi
 
 # =================================================================== TIER 3 ==
@@ -131,6 +131,7 @@ if (( PL_APPLY )); then
     print -r -- "      ${PL_BLD}reclaimed unknown${PL_RST} — free space could not be measured before/after"
     pl_log "reclaim tier=$tier freed=unknown free_pct=unknown"
   fi
+  pl_sizes_refresh_after_reclaim
 else
   print -r -- "      dry run — nothing removed. Re-run with ${PL_BLD}--apply${PL_RST}."
 fi

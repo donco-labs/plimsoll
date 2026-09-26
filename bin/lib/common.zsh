@@ -1108,6 +1108,23 @@ pl_sizes_refresh() {
 
 pl_sizes_read() { [[ -r $PL_SIZES_CACHE ]] && cat $PL_SIZES_CACHE }
 
+# After anything that deletes from the watched directories. The cache is only
+# re-measured when it is PL_SIZES_MAX_AGE_H old, so the watchlist went on
+# showing pre-reclaim sizes for up to half a day -- right when you open it to
+# see what the reclaim did. The Disk row updates on the next render; this makes
+# the rows under it agree.
+#
+# Detached and niced, the same as the guard's refresh: a cold walk takes ~10s
+# and the reclaim has already printed its result. The menu bar is told to
+# redraw now for the Disk row, and again once the walk lands. If a walk is
+# already running, pl_sizes_refresh returns at once on its lock, and that walk's
+# figures are the ones shown.
+pl_sizes_refresh_after_reclaim() {
+  open -g "swiftbar://refreshplugin?name=plimsoll" 2>/dev/null
+  ( nice -n 15 zsh -c "source ${(q)PL_LIB_DIR}/common.zsh; pl_sizes_refresh; open -g 'swiftbar://refreshplugin?name=plimsoll'" >/dev/null 2>&1 & ) &!
+  pl_info "re-measuring the watchlist in the background; the menu bar updates when it lands"
+}
+
 # A point-in-time size tells you what a directory holds; only a series tells you
 # whether it is growing, which is the question the watchlist exists to answer.
 # sizes.tsv is overwritten on every refresh, so each measurement is also
