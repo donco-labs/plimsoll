@@ -525,6 +525,33 @@ pl_tm_last_result() {
   print -r -- $r
 }
 
+# Time Machine's own reason for the last result, when it recorded one. It sits
+# next to RESULT as MessageParameters and is the sentence System Settings shows
+# under the destination -- e.g. "Computer is on battery power" beside RESULT 100.
+# Reading the number without it is how 100 got reported as an unexplained
+# "backupd error": it was a run skipped by the user's own AC-power setting.
+pl_tm_last_message() {
+  local m
+  m=$(defaults read /Library/Preferences/com.apple.TimeMachine 2>/dev/null \
+      | sed -nE '/MessageParameters/,/\);/ s/^[[:space:]]*"(.+)",?[[:space:]]*$/\1/p' \
+      | head -1)
+  [[ -n $m ]] || return 1
+  print -r -- $m
+}
+
+# Was the last run skipped only because the Mac is on battery? Time Machine's
+# "Back up on battery power" off (RequiresACPower = 1) turns every scheduled run
+# on battery into RESULT 100. That is the setting working, not a fault.
+# Only ever for 100, so a message left over from an earlier run cannot talk a
+# genuine failure code down. Then trust the recorded message; fall back to asking
+# power directly, since the message is not guaranteed to be there or in English.
+pl_tm_skipped_on_battery() {  # $1 = RESULT · $2 = message
+  (( ${1:-0} == 100 )) || return 1
+  [[ ${2:l} == *battery* ]] && return 0
+  [[ $(defaults read /Library/Preferences/com.apple.TimeMachine RequiresACPower 2>/dev/null) == 1 ]] || return 1
+  pmset -g batt 2>/dev/null | grep -q "'Battery Power'"
+}
+
 # Only codes this toolkit has actually seen in
 #   log show --predicate 'subsystem == "com.apple.TimeMachine"'
 # are named. Everything else is reported as a bare number: a wrong cause sends
@@ -534,7 +561,8 @@ pl_tm_result_cause() {
     (26) print -r -- "network dropped mid-copy" ;;
     (31) print -r -- "backup disk locked" ;;
     (70) print -r -- "disk image detached mid-copy" ;;
-    (*)  print -r -- "backupd error ${1:-?}" ;;
+    (*)  local m; m=$(pl_tm_last_message) && print -r -- "${m:l}" \
+           || print -r -- "backupd error ${1:-?}" ;;
   esac
 }
 
@@ -544,6 +572,8 @@ pl_tm_result_cause() {
 #
 # Same rule as the causes: a remedy only for a code this toolkit has seen fixed.
 # Everything else gets the command that finds the real error, not a guess.
+# Unnamed codes still take their cause from Time Machine's own message when it
+# left one, since that is Apple's words, not a guess.
 #
 # 26 and 70 name two causes, because both have been seen and they look the same
 # from here: a laptop sleeping mid-copy, and a Mac mini whose loose Ethernet
@@ -551,15 +581,88 @@ pl_tm_result_cause() {
 # only sleep sent the second one looking in the wrong place. Detecting which it
 # was is not affordable -- `pmset -g log` alone costs 3s -- so say where to look.
 #
-# Commands use /usr/bin/log, never bare `log`: in zsh, the macOS default shell,
-# `log` is a builtin that lists logins, so the pasted command prints nothing and
-# reads as "no errors found".
+# The lookups themselves live in `plimsoll tm-log`, not in the advice text. This
+# text lands in a SwiftBar tooltip, where a "|" has to be swapped for a lookalike
+# and a " is stripped, so any pipeline or quoted predicate spelled out here pastes
+# into a command that silently does something else. A bare subcommand survives
+# every surface: tooltip, notification, JSON, report.
 pl_tm_result_remedy() {
   case ${1:-} in
-    (26|70) print -r -- "Usually the Mac sleeping or its network changing, such as a loose Ethernet cable flipping it to Wi-Fi. Keep one stable connection until a backup completes. To tell which: pmset -g log | grep 'Entering Sleep', and /usr/bin/log show --last 2h --predicate 'eventMessage CONTAINS \"network changed\"'" ;;
+    (26|70) print -r -- "Usually the Mac sleeping or its network changing, such as a loose Ethernet cable flipping it to Wi-Fi. Keep one stable connection until a backup completes. To tell which: plimsoll tm-log" ;;
     (31)    print -r -- "The destination is likely holding a stale lock on the backup image: run tmutil stopbackup, restart the NAS or reconnect the disk, then tmutil startbackup --auto." ;;
-    (*)     print -r -- "Find the cause with: /usr/bin/log show --last 24h --predicate 'subsystem == \"com.apple.TimeMachine\"' | grep BACKUP_FAILED" ;;
+    (*)     print -r -- "Find the cause with: plimsoll tm-log" ;;
   esac
+}
+
+# What the remedies point at. Three things, in the order they answer "why":
+# Time Machine's own verdict, its errors, and -- for the two codes whose cause is
+# sleep or a network flip -- the power and network events that tell those apart.
+#
+# The errors are filtered and folded, because raw they do not answer anything: a
+# normal day holds well over a thousand. Two kinds are dropped outright -- "sticky
+# exclusion extended attribute" for a file deleted mid-scan (backupd racing the
+# filesystem) and "xpc: connection invalid" (a client such as tmutil, or this
+# toolkit's own polling, hanging up). The rest repeat: one unreachable NAS was
+# "Could not resolve Bonjour URL" 301 times in a day. So each distinct message
+# prints once, with how often and when last, digits and UUIDs ignored for the
+# comparison so a retry counts as the same error.
+# BACKUP_FAILED is not filtered on: current macOS no longer logs it, which is
+# how the old advice printed nothing and read as "no errors found".
+#
+# /usr/bin/log, never bare `log` -- in zsh that is a builtin listing logins.
+pl_tm_error_log() {  # $1 = window, e.g. 24h
+  local last=${1:-24h} res msg
+  res=$(pl_tm_last_result) || res="?"
+  msg=$(pl_tm_last_message) || msg="(no message recorded)"
+  print -r -- "Time Machine's last result: ${res} — ${msg}"
+  print -r -- ""
+  print -r -- "Time Machine errors, last ${last} (distinct messages, most recent last):"
+  local out
+  out=$(/usr/bin/log show --last $last --style compact \
+    --predicate 'subsystem == "com.apple.TimeMachine" AND messageType == error' 2>/dev/null \
+    | grep -E '^[0-9]{4}-' \
+    | grep -v -e 'Failed to read sticky exclusion extended attribute' -e 'xpc: connection invalid' \
+    | awk '{
+        when = $1 " " substr($2, 1, 5)
+        msg = $0; sub(/^[^ ]+ [^ ]+ +[A-Za-z]+ +[^ ]+ +/, "", msg)
+        key = msg; gsub(/[0-9A-Fa-f-]{36}/, "U", key); gsub(/[0-9]+/, "N", key)
+        if (!(key in n)) order[++k] = key
+        n[key]++; last[key] = when; text[key] = msg
+      }
+      END { for (i = 1; i <= k; i++) { key = order[i]
+              printf "%s\t%s  x%-4d %s\n", last[key], last[key], n[key], text[key] } }' \
+    | sort | cut -f2- | tail -${PL_TM_LOG_LINES:-20})
+  print -r -- "${out:-  none}"
+  if [[ $res == (26|70) ]]; then
+    print -r -- ""
+    print -r -- "Sleeps, last ${last} (a backup cut off at one of these was the Mac sleeping):"
+    local since=$(date -v-${last%h}H '+%Y-%m-%d %H:%M' 2>/dev/null)
+    pmset -g log 2>/dev/null | grep 'Entering Sleep' \
+      | awk -v s="$since" 's == "" || substr($0,1,16) >= s' | tail -10
+    print -r -- ""
+    # Not "network changed": VPNs such as Tailscale fire that hundreds of times
+    # a day, and matching message text alone scans the whole log (minutes). A
+    # loose cable shows up as configd choosing a different service for IPv4,
+    # so print only the lines where that service actually changes. The same
+    # service being re-elected is routine and says nothing.
+    print -r -- "Primary network switches, last ${last} (one near a failure points at the link, e.g. Ethernet to Wi-Fi):"
+    local sw id name line
+    sw=$(/usr/bin/log show --last $last --style compact --info \
+      --predicate 'subsystem == "com.apple.SystemConfiguration" AND category == "IPMonitor" AND eventMessage CONTAINS "is the new primary IPv4"' 2>/dev/null \
+      | grep -E '^[0-9]{4}-' \
+      | awk '{ id = $0; sub(/ is the new primary IPv4.*/, "", id); sub(/.* /, "", id)
+               if (id != prev) print $1 " " substr($2, 1, 8) " " id; prev = id }' \
+      | tail -10)
+    if [[ -z $sw ]]; then
+      print -r -- "  none"
+    else
+      print -r -- "$sw" | while read -r d t id; do
+        name=$(print -r -- "show Setup:/Network/Service/$id" | scutil 2>/dev/null \
+               | sed -nE 's/^[[:space:]]*UserDefinedName : (.*)$/\1/p')
+        print -r -- "$d $t  ${name:-$id}"
+      done
+    fi
+  fi
 }
 
 # How long it has been failing. RESULT says the last attempt failed; it cannot
@@ -776,12 +879,13 @@ pl_pressure_events() {  # $1 = days, $2 = "any" | "memory"
 typeset -ga PL_CHECKS=()   # level \t name \t headline \t detail
 typeset -ga PL_NOTES=()
 
-# Set when the Last attempt row is failing only because the destination is out of
-# reach. The row itself already says so, but a caller cannot tell that apart
+# Set when the Last attempt row is failing only for an expected reason: the
+# destination is out of reach, or Time Machine skipped the run because the Mac is
+# on battery. The row itself already says so, but a caller cannot tell that apart
 # from any other WARN by reading the record, and the guard needs to: an expected
-# weekday condition should not push a desktop notification. Matching on the
+# everyday condition should not push a desktop notification. Matching on the
 # headline string from outside would work until someone rewords it.
-typeset -g PL_TM_AWAY=0
+typeset -g PL_TM_EXPECTED=0
 
 pl_check() { PL_CHECKS+=("${1}"$'\t'"${2}"$'\t'"${3}"$'\t'"${4:-$3}") }
 
@@ -816,7 +920,7 @@ pl_overall_level() {
 # Populates PL_CHECKS / PL_NOTES. Single source of truth: the report and the
 # guard must never disagree about whether this machine is healthy.
 pl_run_health_checks() {
-  PL_CHECKS=(); PL_NOTES=(); PL_TM_AWAY=0
+  PL_CHECKS=(); PL_NOTES=(); PL_TM_EXPECTED=0
 
   # -- disk --------------------------------------------------------------
   # The percentage answers "is this a problem"; the absolute figure answers "how
@@ -890,9 +994,9 @@ pl_run_health_checks() {
       else
         local anchor since hours cause remedy reach
         anchor=$(pl_tm_last_backup_epoch) || anchor=none
+        local msg; msg=$(pl_tm_last_message) || msg=""
         cause=$(pl_tm_result_cause $res)
         remedy=$(pl_tm_result_remedy $res)
-        pl_tm_destination_reachable; reach=$?
 
         # Being away from the destination is not a fault. A laptop on a
         # different network cannot reach the NAS at home, and Time Machine
@@ -907,11 +1011,20 @@ pl_run_health_checks() {
         # Only a definite "not reachable" (1) suppresses escalation. A probe
         # that cannot tell (2) takes the normal path -- never go quiet on
         # uncertainty.
-        if (( reach == 1 )); then
+        # On battery with "Back up on battery power" off, Time Machine skips the
+        # run and records 100. Same shape as being away: expected, not
+        # escalating, and the Backup age row catches it if it goes on for days.
+        # Checked before the reachability probe, which a skip does not need.
+        if pl_tm_skipped_on_battery $res "$msg"; then
+          pl_tm_failing_reset $anchor
+          PL_TM_EXPECTED=1
+          pl_check WARN "Last attempt" "skipped — on battery" \
+            "Time Machine skipped the last run: the Mac is on battery and “Back up on battery power” is off (code ${res}). It runs on its own once plugged in. To allow it: System Settings › General › Time Machine › Options."
+        elif pl_tm_destination_reachable; reach=$?; (( reach == 1 )); then
           # Hold the clock, or coming home to one failed attempt would escalate
           # instantly on time that was only ever spent out of range.
           pl_tm_failing_reset $anchor
-          PL_TM_AWAY=1
+          PL_TM_EXPECTED=1
           pl_check WARN "Last attempt" "destination not reachable" \
             "Destination unreachable from this network (code ${res}). Expected while away; clears on its network. If you stay away, the Backup row is what escalates."
         else

@@ -160,6 +160,61 @@ jobs:
             print "clock held at now"
           '
 
+      - name: A run skipped on battery warns but does not escalate
+        # RESULT 100 with "Computer is on battery power" is Time Machine
+        # honouring its own AC-power setting, not a failure. It must not read
+        # as an unexplained error, must not reach CRIT, and must not push a
+        # notification -- the Backup age row owns "this has gone on too long".
+        run: |
+          zsh -c '
+            source bin/lib/common.zsh
+            export PL_TM_STATE=$(mktemp -d)/tm.state
+            pl_tm_enabled()           { return 0 }
+            pl_tm_last_backup_epoch() { print -r -- 1757370669 }
+            pl_tm_last_result()       { print -r -- 100 }
+            pl_tm_last_message()      { print -r -- "Computer is on battery power" }
+            printf "%s\t%s\n" 1757370669 $(( $(date +%s) - 72*3600 )) > $PL_TM_STATE
+            pl_run_health_checks
+            seen=0
+            for c in $PL_CHECKS; do
+              [[ $(pl_check_name $c) == "Last attempt" ]] || continue
+              seen=1
+              [[ $(pl_check_level $c) == WARN ]] || { print "FAIL: expected WARN, got $(pl_check_level $c)"; exit 1 }
+              [[ $(pl_check_headline $c) == *battery* ]] || { print "FAIL: headline $(pl_check_headline $c)"; exit 1 }
+              print "correctly WARN: $(pl_check_headline $c)"
+            done
+            (( seen )) || { print "FAIL: no Last attempt check"; exit 1 }
+            (( PL_TM_EXPECTED )) || { print "FAIL: not marked expected, guard would notify"; exit 1 }
+            age=$(( ( $(date +%s) - $(cut -f2 $PL_TM_STATE) ) / 3600 ))
+            (( age < 1 )) || { print "FAIL: clock not held, ${age}h"; exit 1 }
+            print "clock held at now"
+          '
+
+      - name: A stale battery message cannot talk down a real failure
+        # MessageParameters can outlive the result it described. Only code 100
+        # may be read as a battery skip.
+        run: |
+          zsh -c '
+            source bin/lib/common.zsh
+            pl_tm_skipped_on_battery 26 "Computer is on battery power" \
+              && { print "FAIL: code 26 read as a battery skip"; exit 1 }
+            print "code 26 stays a failure"
+          '
+
+      - name: Failure advice survives a SwiftBar tooltip
+        # Tooltips strip " and swap | for a lookalike, so advice that spells
+        # out a quoted predicate or a pipeline pastes as a broken command.
+        run: |
+          zsh -c '
+            source bin/lib/common.zsh
+            for code in 26 31 70 100 999; do
+              r=$(pl_tm_result_remedy $code)
+              [[ $r != *[\"\|]* ]] || { print "FAIL: remedy for $code has a quote or pipe: $r"; exit 1 }
+            done
+            print "remedies are tooltip-safe"
+          '
+          ./bin/plimsoll tm-log --last nope >/dev/null 2>&1; [[ $? == 2 ]] || { echo "FAIL: bad --last not rejected"; exit 1; }
+
       - name: An unknown reachability probe still escalates
         # Never go quiet on uncertainty -- that is the failure this whole
         # toolkit exists to catch. Only a definite "not reachable" suppresses.
