@@ -213,7 +213,9 @@ jobs:
             done
             print "remedies are tooltip-safe"
           '
-          ./bin/plimsoll tm-log --last nope >/dev/null 2>&1; [[ $? == 2 ]] || { echo "FAIL: bad --last not rejected"; exit 1; }
+          set +e
+          ./bin/plimsoll tm-log --last nope >/dev/null 2>&1
+          [ $? -eq 2 ] || { echo "FAIL: bad --last not rejected"; exit 1; }
 
       - name: An unknown reachability probe still escalates
         # Never go quiet on uncertainty -- that is the failure this whole
@@ -255,9 +257,10 @@ jobs:
               done
             }
             code=31; [[ $(detail_for) == *"restart the NAS"* ]] || { print "FAIL: code 31 has no remedy"; exit 1 }
-            code=99; [[ $(detail_for) == *"/usr/bin/log show"* ]] || { print "FAIL: unknown code has no lookup"; exit 1 }
-            # Both causes seen for a dropped connection, not just sleep.
-            code=26; [[ $(detail_for) == *Sleep*network* ]]      || { print "FAIL: code 26 names one cause"; exit 1 }
+            code=99; [[ $(detail_for) == *"plimsoll tm-log"* ]] || { print "FAIL: unknown code has no lookup"; exit 1 }
+            # Both causes seen for a dropped connection, not just sleep, and
+            # the command that tells them apart.
+            code=26; [[ $(detail_for) == *sleeping*network*"plimsoll tm-log"* ]] || { print "FAIL: code 26 names one cause or no lookup"; exit 1 }
             # Bare `log` is a zsh builtin: pasted into the default shell it
             # prints nothing, which reads as "no errors".
             for code in 26 31 70 99; do
