@@ -126,8 +126,12 @@ print -r -- "---"
 #
 # A literal "|" would be read as the start of SwiftBar's parameter list and
 # silently eat the rest of the row, so it is replaced before emitting.
+#
+# The replacement "│" (U+2502) is spelled as its UTF-8 bytes, not $'│'.
+# SwiftBar runs plugins in the C locale, where zsh cannot encode \u escapes and
+# aborts the whole plugin with "character not in range".
 pl_menu_wrapped() {   # $1 = text · $2 = leading indent · $3 = params · $4 = tint
-  local text=${1//|/$'\u2502'} line
+  local text=${1//|/$'\xe2\x94\x82'} line
   print -r -- "$text" | fold -s -w 64 | while IFS= read -r line; do
     [[ -n ${line// } ]] || continue
     # fold -s leaves the break space on the end of each line; EXTENDED_GLOB is
@@ -161,7 +165,7 @@ print -r -- "$json" \
       # A literal " would end the quoted parameter early and a literal | would
       # start a second parameter list, so both are neutralised first.
       local tip=${d//\"/}
-      tip=${tip//|/$'\u2502'}
+      tip=${tip//|/$'\xe2\x94\x82'}
 
       # Built up rather than interpolated per branch, so a row with nothing to
       # add prints no trailing "|" at all. A bare pipe is a parameter list with

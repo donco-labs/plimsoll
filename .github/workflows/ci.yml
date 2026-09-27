@@ -372,7 +372,11 @@ jobs:
           cat > "$t/bin/disk-guard.zsh" <<'EOF'
           print -r -- '{"level":"WARN","exit":1,"subject":"Last attempt","headline":"failed — backupd error 18","checks":[{"level":"OK","name":"Disk","headline":"40% free","detail":"fine"},{"level":"WARN","name":"Last attempt","headline":"failed — backupd error 18","detail":"Find the cause with: /usr/bin/log show --predicate \"subsystem == x\" | grep BACKUP_FAILED"}],"notes":[]}'
           EOF
-          out=$(zsh "$t/extra/swiftbar/plimsoll.10m.sh")
+          # SwiftBar runs plugins in the C locale; a $'\u....' escape aborts
+          # the plugin there, so render under it rather than the runner's UTF-8.
+          out=$(LC_ALL=C zsh "$t/extra/swiftbar/plimsoll.10m.sh" 2>&1)
+          echo "$out" | grep -q "character not in range" && { echo "FAIL: plugin aborts in the C locale"; echo "$out"; exit 1; }
+          echo "$out" | grep "Last attempt" | grep -q "│ grep BACKUP_FAILED" || { echo "FAIL: | in a tooltip was not replaced with │"; echo "$out"; exit 1; }
           echo "$out" | grep -q "Last attempt: failed" || { echo "FAIL: a detail with quotes dropped its row"; echo "$out"; exit 1; }
           echo "$out" | grep "Last attempt" | grep -q 'tooltip="Find the cause' || { echo "FAIL: tooltip missing"; echo "$out"; exit 1; }
           rm -rf "$t"
