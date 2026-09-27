@@ -108,7 +108,8 @@ local prev_level="" prev_notify_ts=0
 local now=$(date +%s)
 
 # A laptop that leaves the house every weekday cannot reach a NAS at home, and
-# the Last attempt row correctly goes WARN saying so. Pushing a desktop notification
+# the Last attempt row correctly goes WARN saying so. Same for a run skipped
+# because the Mac is on battery. Pushing a desktop notification
 # about it every morning trains you to dismiss the guard unread, which is how a
 # monitor stops working. Suppress the NOTIFICATION, never the row: the report,
 # the menu bar and the exit code still say WARN, because backups genuinely are
@@ -118,7 +119,7 @@ local now=$(date +%s)
 # CRIT never qualifies -- if you stay away long enough the Backup age row
 # escalates, and that is the signal this whole suppression relies on existing.
 local away_only=0
-if [[ $level == WARN ]] && (( PL_TM_AWAY )); then
+if [[ $level == WARN ]] && (( PL_TM_EXPECTED )); then
   local -a bad
   for c in $PL_CHECKS; do
     [[ $(pl_check_level $c) == OK ]] && continue

@@ -224,6 +224,7 @@ lines of config instead of a signing pipeline.
 | `make clean-more` | Reclaim tier 1+2 — adds re-downloadable caches |
 | `make review` | List tier-3 *data* candidates for manual decision |
 | `plimsoll thin` | Release space held by local Time Machine snapshots |
+| `plimsoll tm-log` | Why the last backup did not complete: Time Machine's reason and its errors (`--last 2h`) |
 | `make docker` | Report Docker reclaimable space. Never touches volumes |
 | `make docker-clean` | Prune build cache + untagged images, then compact |
 | `make tm-status` | Which codified Time Machine exclusions are applied |
@@ -282,8 +283,9 @@ It **checks** every 2 hours; it **notifies** only on a level change, or once per
 **A silent notification tray is the healthy steady state** — use `make log` to
 confirm it is alive.
 
-One condition is deliberately silent even at WARN: `Last attempt: destination not reachable`
-when it is the *only* thing wrong. A laptop that leaves the house every weekday
+Two conditions are deliberately silent even at WARN: `Last attempt: destination not reachable`
+and `Last attempt: skipped — on battery` (Time Machine's code 100 with "Back up on
+battery power" off), when either is the *only* thing wrong. A laptop that leaves the house every weekday
 cannot reach a NAS at home, and a notification every morning about the expected
 consequence of commuting trains you to dismiss the guard unread. The row still
 reads WARN in the report and the menu bar and the exit code is still `1` —

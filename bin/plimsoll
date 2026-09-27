@@ -33,6 +33,7 @@ usage() {
   print -r -- "  docker        Docker space, never touches volumes (dry-run by default)"
   print -r -- "  tm-exclude    apply the Time Machine exclusion policy (dry-run by default)"
   print -r -- "  thin          release space held by local Time Machine snapshots"
+  print -r -- "  tm-log        why the last backup did not complete  (--last 2h, default 24h)"
   print -r -- "  install-guard install the launchd watchdog (checks every 2h)"
   print -r -- "  uninstall-guard"
   print -r -- "  guard-status  show whether the launchd watchdog is loaded"
@@ -131,6 +132,14 @@ case $cmd in
     # -g keeps focus in this window.
     open -g "swiftbar://refreshplugin?name=plimsoll" 2>/dev/null
     ;;
+  tm-log)
+    # The command the Last attempt row points at. It has to be a bare word:
+    # that advice is read in a tooltip, which cannot carry a pipe or a quote.
+    local last=24h
+    [[ ${1:-} == --last && -n ${2:-} ]] && last=$2
+    [[ $last == <->h ]] || { print -ru2 -- "tm-log: --last takes hours, e.g. 2h"; exit 2 }
+    source $here/lib/common.zsh || exit 1
+    pl_tm_error_log $last ;;
   install-guard)
     source $here/lib/common.zsh || exit 1
     local plist=$PL_GUARD_PLIST
